@@ -206,6 +206,16 @@
   .pad-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .pad-top button { min-height: 34px; font-size: 13px; }
   .pad-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  /* 高さを変えるつまみ（マウスでも指でも動かせる） */
+  .pad { padding-top: 0; }
+  .grip {
+    display: grid; place-items: center; height: 22px; margin-inline: -16px;
+    cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .grip span { width: 44px; height: 5px; border-radius: 99px; background: var(--line); }
+  .grip:hover span, .grip.dragging span { background: var(--muted); }
+  /* 高さを低くしたときは、この部分がスクロールする */
+  .pad-scroll { display: grid; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
   .next-hand { width: 100%; min-height: 50px; font-size: 16px; }
   /* 画面上部の「新しいハンド」 */
   .top-right { display: flex; align-items: center; gap: 10px; }
@@ -388,6 +398,8 @@
 
 <!-- 画面の下に固定：アクション入力 -->
 <div class="pad" id="pad">
+  <!-- つまみ：押したまま上下に動かすと高さを変えられる（ダブルタップで元に戻る） -->
+  <div class="grip" id="pad-grip" title="押したまま上下に動かすと高さを変えられます（ダブルタップで元に戻る）"><span></span></div>
   <div class="pad-in">
     <div class="pad-top">
       <div class="turn" id="turn"></div>
@@ -396,6 +408,8 @@
         <button type="button" id="pad-toggle">たたむ ▼</button>
       </div>
     </div>
+    <!-- ここから下は、高さを低くしたときにスクロールする部分 -->
+    <div class="pad-scroll" id="pad-scroll">
     <!-- 入力し忘れがあるときだけ出るボタン -->
     <div class="shortcuts" id="shortcuts"></div>
     <!-- ハンドが終わったときだけ出るボタン -->
@@ -417,16 +431,19 @@
       </div>
     </div>
     <div class="msg" id="msg"></div>
+    </div>
   </div>
 </div>
 
 <!-- 画面の下に固定：カード選択（カードの枠を押したときだけ出る） -->
 <div class="pad" id="sheet" hidden>
+  <div class="grip" id="sheet-grip" title="押したまま上下に動かすと高さを変えられます（ダブルタップで元に戻る）"><span></span></div>
   <div class="pad-in">
     <div class="pad-top">
       <div class="turn" id="sheet-title"></div>
       <button type="button" id="sheet-close">閉じる</button>
     </div>
+    <div class="pad-scroll" id="sheet-scroll">
     <!-- HEROの手札を選ぶときだけ、ポジションも選べるようにする -->
     <div class="sheet-pos-wrap" id="sheet-pos-wrap" hidden>
       <p class="hint" id="sheet-pos-hint"></p>
@@ -434,6 +451,7 @@
     </div>
     <div class="ranks" id="ranks"></div>
     <div class="suits" id="suits"></div>
+    </div>
   </div>
 </div>
 
@@ -1134,6 +1152,7 @@ function renderPad(sim) {
   const picking = state.pick !== null;
   $('pad').hidden = picking;  // カード選択中は、アクション入力の代わりにカード選択を出す
   document.body.classList.toggle('pad-min', !picking && (sim.done || !state.padOpen));
+  requestAnimationFrame(fitBodyPadding);  // 表示が変わったら、下の余白を合わせる
 
   $('undo').disabled = state.actions.length === 0;
   $('msg').textContent = state.message;
@@ -1452,6 +1471,69 @@ $('amount').addEventListener('input', e => {
   selectByAmount();
   render();
 });
+
+// ============================================
+// 8. 画面下の欄の高さを、つまみで変えられるようにする
+// ============================================
+const panelHeights = loadJSON('heights', {});  // 決めた高さ（{ pad: 180, sheet: 200 } のように保存）
+
+// 画面の下の余白を、今出ている欄の高さに合わせる（中身が欄に隠れないように）
+function fitBodyPadding() {
+  const el = !$('sheet').hidden ? $('sheet') : $('pad');
+  document.body.style.paddingBottom = `${el.offsetHeight + 16}px`;
+}
+
+function makeResizable(key, gripId, scrollId) {
+  const grip = $(gripId), area = $(scrollId);
+  if (panelHeights[key] !== undefined) area.style.maxHeight = `${panelHeights[key]}px`;
+  let startY = 0, startH = 0, dragging = false, moved = false, lastTap = 0;
+
+  grip.addEventListener('pointerdown', e => {
+    dragging = true;
+    moved = false;
+    startY = e.clientY;
+    startH = area.getBoundingClientRect().height;
+    try { grip.setPointerCapture(e.pointerId); } catch (err) { /* 使えない環境では何もしない */ }
+    grip.classList.add('dragging');
+    e.preventDefault();
+  });
+  grip.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    if (Math.abs(e.clientY - startY) < 4) return;  // 少し触れただけでは動かさない
+    moved = true;
+    // 上に動かすと高く、下に動かすと低くなる（0〜画面の7割まで）
+    const h =Math.max(0, Math.min(startH + (startY - e.clientY), window.innerHeight * 0.7));
+    area.style.maxHeight = `${h}px`;
+    fitBodyPadding();
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    grip.classList.remove('dragging');
+    if (moved) {
+      // 動かしたときは、その高さを覚える
+      panelHeights[key] = parseFloat(area.style.maxHeight);
+      saveJSON('heights', panelHeights);
+      return;
+    }
+    // 動かさずに2回続けて触れたら（ダブルタップ・ダブルクリック）、元の高さに戻す
+    const now = Date.now();
+    if (now - lastTap < 350) {
+      area.style.maxHeight = '';
+      delete panelHeights[key];
+      saveJSON('heights', panelHeights);
+      fitBodyPadding();
+      lastTap = 0;
+    } else {
+      lastTap = now;
+    }
+  };
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', () => { dragging = false; grip.classList.remove('dragging'); });
+}
+makeResizable('pad', 'pad-grip', 'pad-scroll');
+makeResizable('sheet', 'sheet-grip', 'sheet-scroll');
+window.addEventListener('resize', fitBodyPadding);
 
 // 最初の表示（前回の続きを読み込んでから描く）
 restoreCurrent();
