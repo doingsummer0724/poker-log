@@ -209,10 +209,13 @@
   /* 高さを変えるつまみ（マウスでも指でも動かせる） */
   .pad { padding-top: 0; }
   .grip {
-    display: grid; place-items: center; height: 22px; margin-inline: -16px;
+    display: grid; place-items: center; height: 30px; margin-inline: -16px;
     cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none;
   }
-  .grip span { width: 44px; height: 5px; border-radius: 99px; background: var(--line); }
+  .grip span { width: 56px; height: 6px; border-radius: 99px; background: var(--line); }
+  /* 「〇〇の番です」の行でもつかめる（ボタン以外の部分） */
+  .pad .pad-top { touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; }
+  .pad .pad-top button { cursor: pointer; }
   .grip:hover span, .grip.dragging span { background: var(--muted); }
   /* 高さを低くしたときは、この部分がスクロールする */
   .pad-scroll { display: grid; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
@@ -1485,38 +1488,50 @@ function fitBodyPadding() {
 
 function makeResizable(key, gripId, scrollId) {
   const grip = $(gripId), area = $(scrollId);
+  const header = grip.parentElement.querySelector('.pad-top');  // 「〇〇の番です」の行もつかめるようにする
   if (panelHeights[key] !== undefined) area.style.maxHeight = `${panelHeights[key]}px`;
-  let startY = 0, startH = 0, dragging = false, moved = false, lastTap = 0;
+  let startY = 0, startH = 0, dragging = null, moved = false, lastTap = 0, frame = 0, nextH = 0;
 
-  grip.addEventListener('pointerdown', e => {
-    dragging = true;
+  const start = (handle, e) => {
+    if (e.target.closest('button, input')) return;  // ボタンを押したときは動かさない
+    dragging = handle;
     moved = false;
     startY = e.clientY;
     startH = area.getBoundingClientRect().height;
-    try { grip.setPointerCapture(e.pointerId); } catch (err) { /* 使えない環境では何もしない */ }
+    try { handle.setPointerCapture(e.pointerId); } catch (err) { /* 使えない環境では何もしない */ }
     grip.classList.add('dragging');
     e.preventDefault();
-  });
-  grip.addEventListener('pointermove', e => {
+  };
+  const move = e => {
     if (!dragging) return;
-    if (Math.abs(e.clientY - startY) < 4) return;  // 少し触れただけでは動かさない
+    if (!moved && Math.abs(e.clientY - startY) < 3) return;  // 少し触れただけでは動かさない
     moved = true;
-    // 上に動かすと高く、下に動かすと低くなる（0〜画面の7割まで）
-    const h =Math.max(0, Math.min(startH + (startY - e.clientY), window.innerHeight * 0.7));
-    area.style.maxHeight = `${h}px`;
-    fitBodyPadding();
-  });
+    // 上に動かすと高く、下に動かすと低くなる。
+    // 上限は「中身が全部見える高さ」（画面の7割まで）。それ以上は引き上げない
+    const limit = Math.min(area.scrollHeight, window.innerHeight * 0.7);
+    nextH = Math.max(0, Math.min(startH + (startY - e.clientY), limit));
+    // 画面の更新に合わせて描き直す（動きをなめらかにする）
+    if (!frame) frame = requestAnimationFrame(() => {
+      frame = 0;
+      area.style.maxHeight = `${nextH}px`;
+      fitBodyPadding();
+    });
+  };
   const end = () => {
     if (!dragging) return;
-    dragging = false;
+    const handle = dragging;
+    dragging = null;
     grip.classList.remove('dragging');
     if (moved) {
       // 動かしたときは、その高さを覚える
-      panelHeights[key] = parseFloat(area.style.maxHeight);
+      area.style.maxHeight = `${nextH}px`;
+      fitBodyPadding();
+      panelHeights[key] = nextH;
       saveJSON('heights', panelHeights);
       return;
     }
-    // 動かさずに2回続けて触れたら（ダブルタップ・ダブルクリック）、元の高さに戻す
+    // つまみを動かさずに2回続けて触れたら（ダブルタップ・ダブルクリック）、元の高さに戻す
+    if (handle !== grip) return;
     const now = Date.now();
     if (now - lastTap < 350) {
       area.style.maxHeight = '';
@@ -1528,8 +1543,12 @@ function makeResizable(key, gripId, scrollId) {
       lastTap = now;
     }
   };
-  grip.addEventListener('pointerup', end);
-  grip.addEventListener('pointercancel', () => { dragging = false; grip.classList.remove('dragging'); });
+  [grip, header].forEach(handle => {
+    handle.addEventListener('pointerdown', e => start(handle, e));
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', () => { dragging = null; grip.classList.remove('dragging'); });
+  });
 }
 makeResizable('pad', 'pad-grip', 'pad-scroll');
 makeResizable('sheet', 'sheet-grip', 'sheet-scroll');
