@@ -206,6 +206,10 @@
   .pad-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .pad-top button { min-height: 34px; font-size: 13px; }
   .pad-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .next-hand { width: 100%; min-height: 50px; font-size: 16px; }
+  /* 画面上部の「新しいハンド」 */
+  .top-right { display: flex; align-items: center; gap: 10px; }
+  .new-hand { min-height: 34px; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
   .pad-body { display: grid; gap: 8px; }
   /* 入力し忘れを知らせるボタン（押すとカード選択が開く） */
   .shortcuts { display: grid; gap: 6px; }
@@ -259,11 +263,14 @@
     <div class="street" id="street">PREFLOP</div>
     <div class="blinds" id="summary"></div>
   </div>
-  <div class="pot"><small>ポット</small><span id="pot">0</span></div>
+  <div class="top-right">
+    <div class="pot"><small>ポット</small><span id="pot">0</span></div>
+    <button type="button" id="new-hand" class="new-hand">新しいハンド</button>
+  </div>
 </header>
 
 <main class="wrap">
-  <p class="note">Step 5：入力中のハンドは自動で保存され、再読み込みしても続きから入力できます。「新しいハンド」を押すと、今のハンドは一番下の「ハンド履歴」に残ります。</p>
+  <p class="note">入力中のハンドは自動で保存され、再読み込みしても続きから入力できます。「新しいハンド」を押すと、今のハンドは一番下の「ハンド履歴」に残ります。HU は人数の「2人」を選んでください。</p>
 
   <!-- ① 卓の設定 -->
   <section>
@@ -272,6 +279,7 @@
       <div class="row">
         <span class="label">人数</span>
         <div class="seg">
+          <button type="button" data-seats="2">2人</button>
           <button type="button" data-seats="6">6人</button>
           <button type="button" data-seats="7">7人</button>
           <button type="button" data-seats="8">8人</button>
@@ -347,7 +355,6 @@
       <pre id="output"></pre>
       <div class="row">
         <button type="button" id="copy" class="primary">テキストをコピー</button>
-        <button type="button" id="new-hand">新しいハンド</button>
         <span class="copy-msg" id="copy-msg"></span>
       </div>
     </div>
@@ -391,6 +398,8 @@
     </div>
     <!-- 入力し忘れがあるときだけ出るボタン -->
     <div class="shortcuts" id="shortcuts"></div>
+    <!-- ハンドが終わったときだけ出るボタン -->
+    <button type="button" id="next-hand" class="primary next-hand" hidden>次のハンドへ（履歴に保存）</button>
     <div class="pad-body" id="pad-body">
       <div class="who-row" id="who"></div>
       <div class="acts">
@@ -435,6 +444,7 @@
 
 // 人数ごとのポジション（プリフロップで打つ順番）
 const POSITIONS = {
+  2: ['SB', 'BB'],  // HU：SBの人がボタンを兼ねる
   6: ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
   7: ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
   8: ['UTG', 'UTG1', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
@@ -594,7 +604,7 @@ function simulate() {
     players.forEach(p => { p.total += p.put; p.put = 0; p.acted = false; });
     currentBet = 0;
     street++;
-    next = n - 2;  // フロップ以降はSBから
+    next = n === 2 ? 1 : n - 2;  // フロップ以降はSBから（HUはBBから）
     if (street <= 3) potAt[street] = pot();
   };
 
@@ -806,7 +816,7 @@ function buildGTOW(sim) {
 
   // ヘッダー・席・ブラインド
   L.push(`PokerStars Hand #${now.getTime()}: Tournament #${tid}, $10+$1 USD Hold'em No Limit - Level I (${state.sb}/${state.bb}) - ${date} ET`);
-  L.push(`Table '${tid} 1' ${n}-max Seat #${seat('BTN')} is the button`);
+  L.push(`Table '${tid} 1' ${n}-max Seat #${seat(n === 2 ? 'SB' : 'BTN')} is the button`);  // HUはSBがボタン
   list.forEach(pos => L.push(`Seat ${seat(pos)}: ${name(pos)} (${stack} in chips)`));
   if (state.anteType === 'bb') L.push(`${name('BB')}: posts the ante ${state.ante}`);
   if (state.anteType === 'all') list.forEach(pos => L.push(`${name(pos)}: posts the ante ${state.ante}`));
@@ -875,7 +885,7 @@ function buildGTOW(sim) {
   L.push('*** SUMMARY ***');
   L.push(`Total pot ${potTotal} | Rake 0`);
   if (reached >= 1) L.push(`Board [${boardIdx.map(i => b[i]).join(' ')}]`);
-  const tag = { BTN: ' (button)', SB: ' (small blind)', BB: ' (big blind)' };
+  const tag = { BTN: ' (button)', SB: n === 2 ? ' (button) (small blind)' : ' (small blind)', BB: ' (big blind)' };
   const where = ['before Flop', 'on the Flop', 'on the Turn', 'on the River'];
   list.forEach(pos => {
     const head = `Seat ${seat(pos)}: ${name(pos)}${tag[pos] || ''}`;
@@ -936,19 +946,21 @@ function restoreCurrent() {
   state.pick = heroDone ? null : (state.hero[0] ? 'h1' : 'h0');
 }
 
+// 最終的なポット（相手が降りて決着したときは、コールされなかったベットを除く）
+function finalPot(sim) {
+  if (sim.alive.length !== 1) return sim.pot;
+  const w = sim.alive[0];
+  const maxOther = Math.max(0, ...sim.players.filter(p => p !== w).map(p => p.put));
+  return sim.pot - Math.max(0, w.put - maxOther);
+}
+
 // 今のハンドを履歴に追加する
 function saveToHistory() {
   const sim = simulate();
   const g = buildGTOW(sim);
   const data = {};
   SAVE_FIELDS.forEach(k => { data[k] = JSON.parse(JSON.stringify(state[k])); });
-  // 相手が降りて決着したときは、コールされなかったベットを除いた額をポットとする
-  let pot = sim.pot;
-  if (sim.alive.length === 1) {
-    const w = sim.alive[0];
-    const maxOther = Math.max(0, ...sim.players.filter(p => p !== w).map(p => p.put));
-    pot -= Math.max(0, w.put - maxOther);
-  }
+  const pot = finalPot(sim);
   history.unshift({
     id: Date.now(),
     savedAt: new Date().toISOString(),
@@ -1142,9 +1154,12 @@ function renderPad(sim) {
   }
   $('shortcuts').innerHTML = sc;
 
+  // ハンドが終わったら「次のハンドへ」を大きく出す
+  $('next-hand').hidden = !sim.done;
+
   if (sim.done) {
     if (sim.alive.length <= 1) {
-      $('turn').innerHTML = `<b>${sim.alive[0].pos}</b>の勝ち（ポット ${fmt(sim.pot)}）`;
+      $('turn').innerHTML = `<b>${sim.alive[0].pos}</b>の勝ち（ポット ${fmt(finalPot(sim))}）`;
     } else {
       const boardLeft = state.board.some(c => !c);
       $('turn').innerHTML = boardLeft
@@ -1311,7 +1326,9 @@ function newHand() {
   const nextPos = nextHeroPos();
   const note = nextPos ? `\n（HEROのポジションは ${nextPos} になります）` : '';
   if (hasData) {
-    if (!confirm('今のハンドを履歴に保存して、新しいハンドを始めますか？' + note)) return;
+    // 終わったハンドは確認なしで進む。途中のハンドのときだけ確認する
+    const done = simulate().done && state.actions.length > 0;
+    if (!done && !confirm('ハンドの途中です。今のハンドを履歴に保存して、新しいハンドを始めますか？' + note)) return;
     saveToHistory();
     renderHistory();
   }
@@ -1400,7 +1417,7 @@ document.addEventListener('click', e => {
     state.actions.pop();
     Object.assign(state, { actor: null, pending: null, message: '', pick: null, pickRank: null });
   }
-  else if (b.id === 'new-hand') newHand();
+  else if (b.id === 'new-hand' || b.id === 'next-hand') newHand();
   else return;
 
   render();
