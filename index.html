@@ -210,6 +210,11 @@
   .ranks button { font-family: var(--font-num); font-size: 19px; font-weight: 600; padding: 0; min-height: 42px; }
   .suits { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
   .suits button { font-size: 24px; min-height: 46px; }
+  /* HEROの手札を選ぶときに出すポジションの列（1列に並べる） */
+  .sheet-pos-wrap { display: grid; gap: 4px; }
+  .sheet-pos { display: grid; gap: 4px; }
+  .sheet-pos button { font-family: var(--font-num); font-size: 15px; font-weight: 600; padding: 0; min-height: 38px; }
+  .sheet-pos-wrap.need .sheet-pos { outline: 2px solid var(--warn); outline-offset: 2px; border-radius: 8px; }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -358,6 +363,11 @@
     <div class="pad-top">
       <div class="turn" id="sheet-title"></div>
       <button type="button" id="sheet-close">閉じる</button>
+    </div>
+    <!-- HEROの手札を選ぶときだけ、ポジションも選べるようにする -->
+    <div class="sheet-pos-wrap" id="sheet-pos-wrap" hidden>
+      <p class="hint" id="sheet-pos-hint"></p>
+      <div class="sheet-pos" id="sheet-pos"></div>
     </div>
     <div class="ranks" id="ranks"></div>
     <div class="suits" id="suits"></div>
@@ -837,6 +847,21 @@ function renderSheet() {
   $('sheet').hidden = !picking;
   if (!picking) return;
   $('sheet-title').innerHTML = `<b>${slotName(state.pick)}</b>：数字 → マークの順に押してください（色を忘れたら ?）`;
+
+  // HEROの手札を選ぶときは、ポジションのボタンも並べる
+  const heroPick = state.pick[0] === 'h';
+  $('sheet-pos-wrap').hidden = !heroPick;
+  if (heroPick) {
+    const list = POSITIONS[state.seats];
+    const need = state.heroPos === null;
+    $('sheet-pos-wrap').classList.toggle('need', need);
+    $('sheet-pos-hint').className = need ? 'hint warn' : 'hint';
+    $('sheet-pos-hint').textContent = need ? 'HEROのポジションを選んでください' : 'HEROのポジション';
+    $('sheet-pos').style.gridTemplateColumns = `repeat(${list.length}, 1fr)`;
+    $('sheet-pos').innerHTML = list
+      .map(p => `<button type="button" data-pos="${p}" class="${p === state.heroPos ? 'on' : ''}">${p}</button>`)
+      .join('');
+  }
 
   $('ranks').innerHTML = RANKS
     .map(r => `<button type="button" data-rank="${r}" class="${r === state.pickRank ? 'on' : ''}">${r}</button>`)
