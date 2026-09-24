@@ -505,7 +505,11 @@ const state = {
   amount: 0,          // 入力中の額
   message: '',        // 注意メッセージ
   padOpen: true,      // 画面下のアクション入力を開いているか
+  sheetMin: false,    // HEROの手札選択をたたんでいるか
 };
+
+// HEROのポジションと手札2枚がそろっているか
+const heroComplete = () => !!state.heroPos && state.hero.every(c => c);
 
 // 短く書くための道具
 const $ = id => document.getElementById(id);
@@ -1233,8 +1237,13 @@ function renderSheet() {
   if (!picking) return;
   $('sheet-title').innerHTML = `<b>${slotName(state.pick)}</b>：数字 → マークの順に押してください（色を忘れたら ?）`;
 
-  // HEROの手札を選ぶときは、ポジションのボタンも並べる
+  // HEROのポジション・手札がそろうまでは、閉じずに「たたむ／ひらく」にする
   const heroPick = state.pick[0] === 'h';
+  const keepHero = heroPick && !heroComplete();
+  const mini = keepHero && state.sheetMin;
+  $('sheet-scroll').hidden = mini;
+  $('sheet-close').textContent = keepHero ? (mini ? 'ひらく ▲' : 'たたむ ▼') : '閉じる';
+  if (mini) $('sheet-title').innerHTML = '<b>HEROのポジション・手札</b>がまだです（「ひらく」で入力）';
   $('sheet-pos-wrap').hidden = !heroPick;
   if (heroPick) {
     const list = POSITIONS[state.seats];
@@ -1317,7 +1326,10 @@ function confirmAmount() {
 function pickSuit(s) {
   setCard(state.pick, state.pickRank + s);
   state.pickRank = null;
-  state.pick = nextSlot(state.pick, simulate());  // 次の空いている場所へ。なければ閉じる
+  const next = nextSlot(state.pick, simulate());  // 次の空いている場所へ。なければ閉じる
+  // HEROの手札が2枚そろっても、ポジションがまだなら閉じない
+  if (!(next === null && state.pick[0] === 'h' && !state.heroPos)) state.pick = next;
+  state.sheetMin = false;
 }
 
 function clearHand() {
@@ -1355,7 +1367,7 @@ function newHand() {
     renderHistory();
   }
   clearHand();
-  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true });
+  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true, sheetMin: false });
   $('copy-msg').textContent = '';
   $('copy-gtow-msg').textContent = '';
 }
@@ -1409,7 +1421,12 @@ document.addEventListener('click', e => {
     state.anteType = d.ante;
     if (d.ante === 'bb') { state.ante = state.bb; $('ante-amt').value = state.bb; }
   }
-  else if (d.pos) state.heroPos = d.pos;  // もう一度押しても選択は外れない
+  else if (d.pos) {
+    const wasMissing = !state.heroPos;
+    state.heroPos = d.pos;  // もう一度押しても選択は外れない
+    // 手札が先にそろっていて、ポジションを選んだことで全部そろったら、アクション入力へ
+    if (wasMissing && state.pick && state.pick[0] === 'h' && state.hero.every(c => c) && !state.pickRank) state.pick = null;
+  }
   else if (d.slot) { state.pick = d.slot; state.pickRank = null; }
   else if (d.open) {
     // 入力し忘れボタン：HEROの手札（空いている方）か、ボードの空いている場所を開く
@@ -1417,6 +1434,7 @@ document.addEventListener('click', e => {
       ? (state.hero[0] ? (state.hero[1] ? 'h0' : 'h1') : 'h0')
       : firstEmptyBoard(simulate());
     state.pickRank = null;
+    state.sheetMin = false;
   }
   else if (d.muck) {
     // マックの切り替え（マックにしたら、入れていたカードは消す）
@@ -1425,7 +1443,10 @@ document.addEventListener('click', e => {
   }
   else if (d.rank) state.pickRank = d.rank;
   else if (d.suit) pickSuit(d.suit);
-  else if (b.id === 'sheet-close') { state.pick = null; state.pickRank = null; }
+  else if (b.id === 'sheet-close') {
+    if (state.pick[0] === 'h' && !heroComplete()) state.sheetMin = !state.sheetMin;  // HERO未入力：たたむ／ひらく
+    else { state.pick = null; state.pickRank = null; }                               // それ以外：閉じる
+  }
   else if (b.id === 'pad-toggle') state.padOpen = !state.padOpen;
   else if (d.actor) { state.actor = d.actor; state.pending = null; state.message = ''; }
   else if (d.act) doAction(d.act);
