@@ -171,6 +171,9 @@
   }
   .primary { background: var(--felt); color: var(--surface); border-color: var(--felt); font-weight: 700; }
   .copy-msg { font-size: 12.5px; color: var(--felt); }
+  details { display: grid; gap: 8px; }
+  details summary { cursor: pointer; padding-block: 4px; }
+  details pre { margin-top: 8px; font-size: 12px; }
 
   /* ============================================
      画面の下に固定する部分（アクション入力・カード選択）
@@ -242,7 +245,7 @@
 </header>
 
 <main class="wrap">
-  <p class="note">Step 3：リバー・ショーダウンまで入力できます。再読み込みすると入力は消えます（Step 5 で保存できるようにします）。</p>
+  <p class="note">Step 4：GTO Wizard用テキスト（試作）を追加しました。再読み込みすると入力は消えます（Step 5 で保存できるようにします）。</p>
 
   <!-- ① 卓の設定 -->
   <section>
@@ -329,6 +332,22 @@
         <button type="button" id="new-hand">新しいハンド</button>
         <span class="copy-msg" id="copy-msg"></span>
       </div>
+    </div>
+  </section>
+
+  <!-- ⑦ GTO Wizard用テキスト（PokerStarsのトーナメント形式） -->
+  <section>
+    <h2>GTO WIZARD用</h2>
+    <div class="panel">
+      <p class="hint" id="gtow-status"></p>
+      <div class="row">
+        <button type="button" id="copy-gtow" class="primary">GTO Wizard用をコピー</button>
+        <span class="copy-msg" id="copy-gtow-msg"></span>
+      </div>
+      <details>
+        <summary class="hint">中身を見る</summary>
+        <pre id="gtow"></pre>
+      </details>
     </div>
   </section>
 </main>
@@ -690,6 +709,163 @@ function buildText(sim) {
 // ============================================
 // 6. 画面を描き直す
 // ============================================
+// ============================================
+// 5-2. GTO Wizard用テキスト（PokerStarsのトーナメント形式）
+// ============================================
+
+// 役の強さを数字の並びで表す（大きいほど強い）
+const rankValue = r => 14 - RANKS.indexOf(r);  // A=14, K=13, … 2=2
+function score5(cards) {
+  const v = cards.map(c => rankValue(c[0])).sort((a, b) => b - a);
+  const flush = cards.every(c => c[1] === cards[0][1]);
+  let straight = 0;
+  if (new Set(v).size === 5) {
+    if (v[0] - v[4] === 4) straight = v[0];
+    else if (v.join() === '14,5,4,3,2') straight = 5;  // A-2-3-4-5
+  }
+  const count = {};
+  v.forEach(x => { count[x] = (count[x] || 0) + 1; });
+  const groups = Object.entries(count).map(([k, c]) => [c, +k]).sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  const kick = groups.map(g => g[1]);
+  if (straight && flush) return [8, straight];                  // ストレートフラッシュ
+  if (groups[0][0] === 4) return [7, ...kick];                  // フォーカード
+  if (groups[0][0] === 3 && groups[1][0] === 2) return [6, ...kick];  // フルハウス
+  if (flush) return [5, ...v];                                  // フラッシュ
+  if (straight) return [4, straight];                           // ストレート
+  if (groups[0][0] === 3) return [3, ...kick];                  // スリーカード
+  if (groups[0][0] === 2 && groups[1][0] === 2) return [2, ...kick];  // ツーペア
+  if (groups[0][0] === 2) return [1, ...kick];                  // ワンペア
+  return [0, ...v];                                             // ハイカード
+}
+const compareScore = (a, b) => {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) - (b[i] || 0);
+  }
+  return 0;
+};
+// 7枚から一番強い5枚の役
+function best7(cards) {
+  let best = null;
+  for (let a = 0; a < 7; a++) for (let b = a + 1; b < 7; b++) {
+    const five = cards.filter((_, i) => i !== a && i !== b);
+    const s = score5(five);
+    if (!best || compareScore(s, best) > 0) best = s;
+  }
+  return best;
+}
+
+const known = c => c && c[1] !== 'x';  // 色までわかっているカードか
+
+function buildGTOW(sim) {
+  // 足りない入力があれば、作らずに知らせる
+  const reached = Math.min(sim.street, 3);
+  const boardIdx = [0, 1, 2, 3, 4].filter(i => STREET_OF_BOARD[i] <= reached);
+  const missing = [];
+  if (!state.heroPos) missing.push('HEROのポジション');
+  if (!state.hero.every(known)) missing.push('HEROの手札（色も）');
+  if (!boardIdx.every(i => known(state.board[i]))) missing.push('ボード（色も）');
+  if (!sim.done) missing.push('ハンドの最後までのアクション');
+  if (missing.length) return { ok: false, text: `作るには、次を入力してください：${missing.join('、')}` };
+
+  const list = sim.list, n = list.length, stack = sim.stack;
+  const name = pos => pos === state.heroPos ? 'Hero' : pos;
+  const seat = pos => list.indexOf(pos) + 1;  // 席番号（UTG=1、…、BTN、SB、BB）
+  const b = state.board;
+  const two = x => String(x).padStart(2, '0');
+  const now = new Date();
+  const date = `${now.getFullYear()}/${two(now.getMonth() + 1)}/${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
+  const tid = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}`;
+  const L = [];
+
+  // ヘッダー・席・ブラインド
+  L.push(`PokerStars Hand #${now.getTime()}: Tournament #${tid}, $10+$1 USD Hold'em No Limit - Level I (${state.sb}/${state.bb}) - ${date} ET`);
+  L.push(`Table '${tid} 1' ${n}-max Seat #${seat('BTN')} is the button`);
+  list.forEach(pos => L.push(`Seat ${seat(pos)}: ${name(pos)} (${stack} in chips)`));
+  if (state.anteType === 'bb') L.push(`${name('BB')}: posts the ante ${state.ante}`);
+  if (state.anteType === 'all') list.forEach(pos => L.push(`${name(pos)}: posts the ante ${state.ante}`));
+  L.push(`${name('SB')}: posts small blind ${state.sb}`);
+  L.push(`${name('BB')}: posts big blind ${state.bb}`);
+  L.push('*** HOLE CARDS ***');
+  L.push(`Dealt to Hero [${state.hero.join(' ')}]`);
+
+  // アクション（自動のフォールド・チェックも含めて順番どおりに書く）
+  const put = {}, total = {}, foldStreet = {};
+  list.forEach(p => { put[p] = 0; total[p] = 0; });
+  put.SB = state.sb; put.BB = state.bb;
+  let street = 0, cb = state.bb;
+  const header = s =>
+    s === 1 ? `*** FLOP *** [${b.slice(0, 3).join(' ')}]` :
+    s === 2 ? `*** TURN *** [${b.slice(0, 3).join(' ')}] [${b[3]}]` :
+    `*** RIVER *** [${b.slice(0, 4).join(' ')}] [${b[4]}]`;
+  const nextStreet = () => {
+    list.forEach(p => { total[p] += put[p]; put[p] = 0; });
+    cb = 0; street++;
+    L.push(header(street));
+  };
+  for (const a of sim.log) {
+    while (street < a.street) nextStreet();
+    const nm = name(a.pos);
+    const allin = total[a.pos] + a.to >= stack ? ' and is all-in' : '';
+    if (a.type === 'f') { L.push(`${nm}: folds`); foldStreet[a.pos] = street; }
+    if (a.type === 'x') L.push(`${nm}: checks`);
+    if (a.type === 'c') { L.push(`${nm}: calls ${a.to - put[a.pos]}${allin}`); put[a.pos] = a.to; }
+    if (a.type === 'b') { L.push(`${nm}: bets ${a.to}${allin}`); put[a.pos] = a.to; cb = a.to; }
+    if (a.type === 'r') { L.push(`${nm}: raises ${a.to - cb} to ${a.to}${allin}`); put[a.pos] = a.to; cb = a.to; }
+  }
+  while (street < reached) nextStreet();  // オールイン後の残りのボード
+
+  // 決着
+  const won = {};   // 勝った人と受け取った額
+  const shown = {}; // ショーダウンで見せた手札
+  let potTotal = sim.pot;
+  if (sim.alive.length === 1) {
+    const w = sim.alive[0].pos;
+    const maxOther = Math.max(0, ...list.filter(p => p !== w).map(p => put[p]));
+    const uncalled = put[w] - maxOther;
+    if (uncalled > 0) { L.push(`Uncalled bet (${uncalled}) returned to ${name(w)}`); potTotal -= uncalled; }
+    L.push(`${name(w)} collected ${potTotal} from pot`);
+    won[w] = potTotal;
+  } else {
+    L.push('*** SHOW DOWN ***');
+    // 手札がわかる人だけで勝負（相手の手札を入れていない・マックのときは、見せなかった扱い）
+    sim.alive.forEach(p => {
+      const c = p.pos === state.heroPos ? state.hero : state.shows[p.pos];
+      if (!state.mucks[p.pos] && c && c.every(known)) shown[p.pos] = c;
+    });
+    const scores = Object.entries(shown).map(([pos, c]) => [pos, best7([...c, ...b])]);
+    const top = scores.reduce((m, s) => (!m || compareScore(s[1], m) > 0 ? s[1] : m), null);
+    const winners = scores.filter(s => compareScore(s[1], top) === 0).map(s => s[0]);
+    sim.alive.forEach(p => {
+      L.push(shown[p.pos] ? `${name(p.pos)}: shows [${shown[p.pos].join(' ')}]` : `${name(p.pos)}: mucks hand`);
+    });
+    winners.forEach(w => {
+      won[w] = Math.floor(potTotal / winners.length);
+      L.push(`${name(w)} collected ${won[w]} from pot`);
+    });
+  }
+
+  // まとめ
+  L.push('*** SUMMARY ***');
+  L.push(`Total pot ${potTotal} | Rake 0`);
+  if (reached >= 1) L.push(`Board [${boardIdx.map(i => b[i]).join(' ')}]`);
+  const tag = { BTN: ' (button)', SB: ' (small blind)', BB: ' (big blind)' };
+  const where = ['before Flop', 'on the Flop', 'on the Turn', 'on the River'];
+  list.forEach(pos => {
+    const head = `Seat ${seat(pos)}: ${name(pos)}${tag[pos] || ''}`;
+    if (foldStreet[pos] !== undefined) {
+      const noBet = foldStreet[pos] === 0 && pos !== 'SB' && pos !== 'BB' ? " (didn't bet)" : '';
+      L.push(`${head} folded ${where[foldStreet[pos]]}${noBet}`);
+    } else if (shown[pos]) {
+      L.push(`${head} showed [${shown[pos].join(' ')}] and ${won[pos] ? `won (${won[pos]})` : 'lost'}`);
+    } else if (won[pos]) {
+      L.push(`${head} collected (${won[pos]})`);
+    } else {
+      L.push(`${head} mucked`);
+    }
+  });
+  return { ok: true, text: L.join('\n') };
+}
+
 function render() {
   const sim = simulate();
 
@@ -714,6 +890,15 @@ function render() {
   renderPad(sim);
   renderSheet();
   $('output').textContent = buildText(sim);
+
+  // GTO Wizard用テキスト
+  const g = buildGTOW(sim);
+  $('gtow').textContent = g.ok ? g.text : '';
+  $('gtow-status').className = g.ok ? 'hint' : 'hint warn';
+  $('gtow-status').textContent = g.ok
+    ? 'コピーして、GTO Wizard の Analyze → Upload に貼り付けてください（試作のため、読み込めないときは教えてください）。'
+    : g.text;
+  $('copy-gtow').disabled = !g.ok;
 }
 
 // カードの枠（押すと、画面下でそのカードを選べる）
@@ -1002,21 +1187,24 @@ function newHand() {
   clearHand();
   Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true });
   $('copy-msg').textContent = '';
+  $('copy-gtow-msg').textContent = '';
 }
 
-async function copyText() {
-  const text = $('output').textContent;
+// preId の中の文字をコピーし、msgId に結果を出す
+async function copyText(preId, msgId) {
+  const text = $(preId).textContent;
   try {
     await navigator.clipboard.writeText(text);
-    $('copy-msg').textContent = 'コピーしました';
+    $(msgId).textContent = 'コピーしました';
   } catch (err) {
     // コピーできない環境では、文字を選択状態にする
+    if (preId === 'gtow') $('gtow').closest('details').open = true;
     const range = document.createRange();
-    range.selectNodeContents($('output'));
+    range.selectNodeContents($(preId));
     const sel = getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
-    $('copy-msg').textContent = '文字を選択しました。長押しでコピーしてください';
+    $(msgId).textContent = '文字を選択しました。長押しでコピーしてください';
   }
 }
 
@@ -1026,7 +1214,9 @@ document.addEventListener('click', e => {
   if (!b || b.disabled) return;
   const d = b.dataset;
 
-  if (b.id === 'copy') { copyText(); return; }  // コピーは画面を描き直さない
+  // コピーは画面を描き直さない
+  if (b.id === 'copy') { copyText('output', 'copy-msg'); return; }
+  if (b.id === 'copy-gtow') { copyText('gtow', 'copy-gtow-msg'); return; }
 
   if (d.seats) changeSeats(+d.seats);
   else if (d.ante) {
