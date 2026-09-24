@@ -175,6 +175,24 @@
   details summary { cursor: pointer; padding-block: 4px; }
   details pre { margin-top: 8px; font-size: 12px; }
 
+  /* ハンド履歴 */
+  .hist { display: grid; }
+  .hist-item { border-top: 1px solid var(--line); padding-block: 8px; }
+  .hist-item:first-child { border-top: 0; padding-top: 0; }
+  .hist-item summary {
+    display: flex; align-items: baseline; gap: 10px; list-style: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .hist-item summary::-webkit-details-marker { display: none; }
+  .hist-item summary::after { content: '▼'; margin-left: auto; font-size: 11px; color: var(--muted); }
+  .hist-item[open] summary::after { content: '▲'; }
+  .hist-time { font-size: 12.5px; color: var(--muted); min-width: 6.5em; }
+  .hist-pos { font-family: var(--font-num); font-weight: 700; font-size: 16px; min-width: 3em; }
+  .hist-hand { font-family: var(--font-num); font-weight: 700; font-size: 16px; }
+  .hist-pot { font-family: var(--font-num); font-size: 15px; color: var(--muted); }
+  .hist-item .row button { min-height: 36px; font-size: 13px; }
+  .hist-item .danger { color: var(--warn); }
+
   /* ============================================
      画面の下に固定する部分（アクション入力・カード選択）
      ============================================ */
@@ -245,7 +263,7 @@
 </header>
 
 <main class="wrap">
-  <p class="note">Step 4：GTO Wizard用テキスト（試作）を追加しました。再読み込みすると入力は消えます（Step 5 で保存できるようにします）。</p>
+  <p class="note">Step 5：入力中のハンドは自動で保存され、再読み込みしても続きから入力できます。「新しいハンド」を押すと、今のハンドは一番下の「ハンド履歴」に残ります。</p>
 
   <!-- ① 卓の設定 -->
   <section>
@@ -348,6 +366,15 @@
         <summary class="hint">中身を見る</summary>
         <pre id="gtow"></pre>
       </details>
+    </div>
+  </section>
+
+  <!-- ⑧ ハンド履歴（このスマホのブラウザ内に保存） -->
+  <section>
+    <h2>ハンド履歴</h2>
+    <div class="panel">
+      <p class="hint" id="hist-note"></p>
+      <div class="hist" id="history"></div>
     </div>
   </section>
 </main>
@@ -866,6 +893,104 @@ function buildGTOW(sim) {
   return { ok: true, text: L.join('\n') };
 }
 
+// ============================================
+// 5-3. 保存（このスマホのブラウザの中に保存する）
+// ============================================
+const STORE = 'pokerlog.v1';
+// 保存する項目（入力中のハンドと卓の設定）
+const SAVE_FIELDS = ['seats', 'sb', 'bb', 'anteType', 'ante', 'es', 'heroPos', 'hero', 'board', 'shows', 'mucks', 'actions', 'padOpen'];
+
+// 読み書き（プライベートモードなどで保存できないときも、アプリは止まらないようにする）
+function loadJSON(key, fallback) {
+  try {
+    const s = localStorage.getItem(`${STORE}.${key}`);
+    return s ? JSON.parse(s) : fallback;
+  } catch (err) { return fallback; }
+}
+function saveJSON(key, value) {
+  try { localStorage.setItem(`${STORE}.${key}`, JSON.stringify(value)); return true; }
+  catch (err) { return false; }
+}
+const storageOK = saveJSON('test', 1);  // 保存できる環境か
+
+let history = loadJSON('history', []);  // ハンド履歴（新しい順）
+
+function saveCurrent() {
+  const data = {};
+  SAVE_FIELDS.forEach(k => { data[k] = state[k]; });
+  saveJSON('current', data);
+}
+
+// アプリを開いたときに、前回の続きを読み込む
+function restoreCurrent() {
+  const data = loadJSON('current', null);
+  if (!data || !POSITIONS[data.seats]) return;
+  SAVE_FIELDS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
+  // 入力欄にも反映する
+  $('sb').value = state.sb;
+  $('bb').value = state.bb;
+  $('ante-amt').value = state.ante;
+  $('es').value = state.es;
+  // 手札がそろっていれば、カード選択は閉じておく
+  const heroDone = state.heroPos && state.hero.every(c => c);
+  state.pick = heroDone ? null : (state.hero[0] ? 'h1' : 'h0');
+}
+
+// 今のハンドを履歴に追加する
+function saveToHistory() {
+  const sim = simulate();
+  const g = buildGTOW(sim);
+  const data = {};
+  SAVE_FIELDS.forEach(k => { data[k] = JSON.parse(JSON.stringify(state[k])); });
+  // 相手が降りて決着したときは、コールされなかったベットを除いた額をポットとする
+  let pot = sim.pot;
+  if (sim.alive.length === 1) {
+    const w = sim.alive[0];
+    const maxOther = Math.max(0, ...sim.players.filter(p => p !== w).map(p => p.put));
+    pot -= Math.max(0, w.put - maxOther);
+  }
+  history.unshift({
+    id: Date.now(),
+    savedAt: new Date().toISOString(),
+    heroPos: state.heroPos,
+    hero: [...state.hero],
+    pot,
+    text: buildText(sim),            // 記録テキスト
+    gtow: g.ok ? g.text : null,      // GTO Wizard用（作れなかったときは null）
+    data,                            // 入力内容そのもの（あとで集計などに使えるように残す）
+  });
+  if (history.length > 500) history.length = 500;  // 多くなりすぎないよう、古いものから消す
+  saveJSON('history', history);
+}
+
+const escapeHTML = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+// 履歴の一覧を描く（開いている項目が閉じないよう、履歴が変わったときだけ描き直す）
+function renderHistory() {
+  $('hist-note').textContent = !storageOK
+    ? 'このブラウザでは保存できません（プライベートモードなど）。'
+    : history.length
+      ? `${history.length}件（このスマホのブラウザの中だけに保存されます。閲覧データを消すと消えます）`
+      : 'まだありません。「新しいハンド」を押すと、今のハンドがここに保存されます。';
+
+  const two = x => String(x).padStart(2, '0');
+  $('history').innerHTML = history.map(h => {
+    const t = new Date(h.savedAt);
+    const time = `${two(t.getMonth() + 1)}/${two(t.getDate())} ${two(t.getHours())}:${two(t.getMinutes())}`;
+    const cards = h.hero.map(c => c ? `<span class="${c[1]}">${c[0]}${SUIT_MARK[c[1]]}</span>` : '?').join('');
+    return `<details class="hist-item">
+      <summary><span class="hist-time">${time}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${fmt(h.pot)}</span></summary>
+      <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
+      <div class="row">
+        <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
+        <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>GTO Wizard用をコピー</button>
+        <button type="button" class="danger" data-hdel="${h.id}">削除</button>
+        <span class="copy-msg" id="hist-msg-${h.id}"></span>
+      </div>
+    </details>`;
+  }).join('');
+}
+
 function render() {
   const sim = simulate();
 
@@ -899,6 +1024,8 @@ function render() {
     ? 'コピーして、GTO Wizard の Analyze → Upload に貼り付けてください（試作のため、読み込めないときは教えてください）。'
     : g.text;
   $('copy-gtow').disabled = !g.ok;
+
+  saveCurrent();  // 画面が変わるたびに、入力中のハンドを保存する
 }
 
 // カードの枠（押すと、画面下でそのカードを選べる）
@@ -1183,29 +1310,48 @@ function newHand() {
   const hasData = state.actions.length || usedCards().length;
   const nextPos = nextHeroPos();
   const note = nextPos ? `\n（HEROのポジションは ${nextPos} になります）` : '';
-  if (hasData && !confirm('今のハンドを消して、新しいハンドを始めますか？' + note)) return;
+  if (hasData) {
+    if (!confirm('今のハンドを履歴に保存して、新しいハンドを始めますか？' + note)) return;
+    saveToHistory();
+    renderHistory();
+  }
   clearHand();
   Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true });
   $('copy-msg').textContent = '';
   $('copy-gtow-msg').textContent = '';
 }
 
-// preId の中の文字をコピーし、msgId に結果を出す
-async function copyText(preId, msgId) {
-  const text = $(preId).textContent;
+// 文字をコピーし、msgId に結果を出す。コピーできない環境では preId の中の文字を選択状態にする
+async function copyString(text, preId, msgId) {
   try {
     await navigator.clipboard.writeText(text);
     $(msgId).textContent = 'コピーしました';
   } catch (err) {
-    // コピーできない環境では、文字を選択状態にする
-    if (preId === 'gtow') $('gtow').closest('details').open = true;
+    const pre = $(preId);
+    pre.textContent = text;
+    const box = pre.closest('details');
+    if (box) box.open = true;
     const range = document.createRange();
-    range.selectNodeContents($(preId));
+    range.selectNodeContents(pre);
     const sel = getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
     $(msgId).textContent = '文字を選択しました。長押しでコピーしてください';
   }
+}
+const copyText = (preId, msgId) => copyString($(preId).textContent, preId, msgId);
+
+// 履歴のボタン（コピー・削除）
+function historyButton(d) {
+  if (d.hcopy) {
+    const h = history.find(x => String(x.id) === d.id);
+    if (h) copyString(d.hcopy === 'gtow' ? h.gtow : h.text, `hist-text-${h.id}`, `hist-msg-${h.id}`);
+    return;
+  }
+  if (!confirm('このハンドを履歴から削除しますか？')) return;
+  history = history.filter(x => String(x.id) !== d.hdel);
+  saveJSON('history', history);
+  renderHistory();
 }
 
 // ボタンが押されたら、どのボタンかを見分けて処理する
@@ -1217,6 +1363,7 @@ document.addEventListener('click', e => {
   // コピーは画面を描き直さない
   if (b.id === 'copy') { copyText('output', 'copy-msg'); return; }
   if (b.id === 'copy-gtow') { copyText('gtow', 'copy-gtow-msg'); return; }
+  if (d.hcopy || d.hdel) { historyButton(d); return; }
 
   if (d.seats) changeSeats(+d.seats);
   else if (d.ante) {
@@ -1289,8 +1436,10 @@ $('amount').addEventListener('input', e => {
   render();
 });
 
-// 最初の表示
+// 最初の表示（前回の続きを読み込んでから描く）
+restoreCurrent();
 render();
+renderHistory();
 </script>
 </body>
 </html>
