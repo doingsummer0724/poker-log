@@ -61,11 +61,11 @@
     font-size: 15px;
     line-height: 1.5;
     padding-inline: 16px;
-    padding-block: 0 330px; /* 下に固定したボタン群に隠れないよう余白を取る */
+    padding-block: 0 380px; /* 下に固定したボタン群に隠れないよう余白を取る */
     -webkit-text-size-adjust: 100%;
   }
   /* アクション入力をたたんでいるときは、下の余白を小さくする */
-  body.pad-min { padding-block-end: 90px; }
+  body.pad-min { padding-block-end: 150px; }
   .wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 14px; }
 
   /* 上部に固定：今のストリートとポット */
@@ -186,6 +186,12 @@
   .pad-top button { min-height: 34px; font-size: 13px; }
   .pad-btns { display: flex; gap: 6px; flex-shrink: 0; }
   .pad-body { display: grid; gap: 8px; }
+  /* 入力し忘れを知らせるボタン（押すとカード選択が開く） */
+  .shortcuts { display: grid; gap: 6px; }
+  .shortcuts:empty { display: none; }
+  .shortcuts button { width: 100%; min-height: 40px; font-weight: 700; font-size: 14px; }
+  .shortcuts .need-hero { color: var(--warn); border-color: var(--warn); }
+  .shortcuts .need-board { color: var(--felt); border-color: var(--felt); }
   .turn { font-size: 13px; color: var(--muted); }
   .turn b { color: var(--ink); font-family: var(--font-num); font-size: 18px; margin-right: 4px; }
   .who-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
@@ -337,6 +343,8 @@
         <button type="button" id="pad-toggle">たたむ ▼</button>
       </div>
     </div>
+    <!-- 入力し忘れがあるときだけ出るボタン -->
+    <div class="shortcuts" id="shortcuts"></div>
     <div class="pad-body" id="pad-body">
       <div class="who-row" id="who"></div>
       <div class="acts">
@@ -472,6 +480,12 @@ function slotName(slot) {
 // そのボードの場所は、もう入力してよいか（そのストリートまで進んでいるか）
 function boardOpen(i, sim) {
   return STREET_OF_BOARD[i] <= Math.min(sim.street, 3);
+}
+
+// まだ入力していないボードの最初の場所（そのストリートまで進んでいるものだけ）
+function firstEmptyBoard(sim) {
+  const i = [0, 1, 2, 3, 4].find(k => !state.board[k] && boardOpen(k, sim));
+  return i === undefined ? null : 'b' + i;
 }
 
 // カードを1枚入れたあと、同じまとまりの次の空いている場所
@@ -795,6 +809,19 @@ function renderPad(sim) {
   $('pad-toggle').hidden = sim.done;
   $('pad-toggle').textContent = state.padOpen ? 'たたむ ▼' : 'ひらく ▲';
 
+  // 入力し忘れを知らせるボタン
+  let sc = '';
+  if (state.heroPos === null || state.hero.some(c => !c)) {
+    sc += '<button type="button" class="need-hero" data-open="hero">HEROのポジション・手札を選ぶ</button>';
+  }
+  const boardSlot = firstEmptyBoard(sim);
+  if (boardSlot) {
+    const i = +boardSlot[1];
+    const name = i < 3 ? 'フロップ' : i === 3 ? 'ターン' : 'リバー';
+    sc += `<button type="button" class="need-board" data-open="board">ボードを入力（${name}）</button>`;
+  }
+  $('shortcuts').innerHTML = sc;
+
   if (sim.done) {
     if (sim.alive.length <= 1) {
       $('turn').innerHTML = `<b>${sim.alive[0].pos}</b>の勝ち（ポット ${fmt(sim.pot)}）`;
@@ -999,6 +1026,13 @@ document.addEventListener('click', e => {
   }
   else if (d.pos) state.heroPos = d.pos;  // もう一度押しても選択は外れない
   else if (d.slot) { state.pick = d.slot; state.pickRank = null; }
+  else if (d.open) {
+    // 入力し忘れボタン：HEROの手札（空いている方）か、ボードの空いている場所を開く
+    state.pick = d.open === 'hero'
+      ? (state.hero[0] ? (state.hero[1] ? 'h0' : 'h1') : 'h0')
+      : firstEmptyBoard(simulate());
+    state.pickRank = null;
+  }
   else if (d.muck) {
     // マックの切り替え（マックにしたら、入れていたカードは消す）
     state.mucks[d.muck] = !state.mucks[d.muck];
