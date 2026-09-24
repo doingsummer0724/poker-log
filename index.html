@@ -596,6 +596,14 @@ function currentActor(sim) {
   return sim.waiting.includes(state.actor) ? state.actor : sim.waiting[0];
 }
 
+// 額を入れたときの扱い：まだ誰もベットしていなければベット、ベットがあればレイズ
+// （プリフロップはBBがあるので常にレイズ。オールインに直面してレイズできないときは null）
+function aggrType(sim) {
+  if (sim.currentBet === 0) return 'b';
+  const p = sim.players.find(q => q.pos === currentActor(sim));
+  return sim.stack - p.total > sim.currentBet ? 'r' : null;
+}
+
 // ベット・レイズ額の早押しボタン
 function presets(sim) {
   const bb = state.bb, cb = sim.currentBet;
@@ -861,10 +869,11 @@ function renderPad(sim) {
 
   // 額の早押しボタン
   $('sizes').innerHTML = presets(sim)
-    .map(([label, to]) => `<button type="button" data-to="${Math.round(to)}">${label}</button>`)
+    .map(([label, to]) => `<button type="button" data-to="${Math.round(to)}"${aggrType(sim) ? '' : ' disabled'}>${label}</button>`)
     .join('');
 
-  $('amount').disabled = !state.pending;
+  // 額の入力欄は、ベットかレイズができるときはいつでも入力できる
+  $('amount').disabled = !aggrType(sim);
   $('ok').disabled = !state.pending;
   $('amount-bb').textContent = state.pending && state.amount ? `= ${bbOf(state.amount)}bb` : '';
 }
@@ -1046,7 +1055,7 @@ document.addEventListener('click', e => {
   else if (d.act) doAction(d.act);
   else if (d.to) {
     // 早押しボタン：ベット／レイズを選んだ状態にして額を入れる
-    state.pending = simulate().currentBet === 0 ? 'b' : 'r';
+    state.pending = aggrType(simulate());
     setAmount(+d.to);
   }
   else if (b.id === 'ok') confirmAmount();
@@ -1076,7 +1085,19 @@ $('bb').addEventListener('input', e => {
 });
 $('ante-amt').addEventListener('input', e => { state.ante = +e.target.value || 0; render(); });
 $('es').addEventListener('input', e => { state.es = +e.target.value || 0; render(); });
-$('amount').addEventListener('input', e => { state.amount = +e.target.value || 0; state.message = ''; render(); });
+// 額の入力欄を押したら、ベットかレイズを選んだことにする
+function selectByAmount() {
+  if (state.pending) return;
+  const t = aggrType(simulate());
+  if (t) { state.pending = t; render(); }
+}
+$('amount').addEventListener('focus', selectByAmount);
+$('amount').addEventListener('input', e => {
+  state.amount = +e.target.value || 0;
+  state.message = '';
+  selectByAmount();
+  render();
+});
 
 // 最初の表示
 render();
