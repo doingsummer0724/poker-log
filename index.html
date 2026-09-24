@@ -1493,14 +1493,18 @@ document.addEventListener('click', e => {
     // 手札が先にそろっていて、ポジションを選んだことで全部そろったら、アクション入力へ
     if (wasMissing && state.pick && state.pick[0] === 'h' && state.hero.every(c => c) && !state.pickRank) state.pick = null;
   }
-  else if (d.slot) { state.pick = d.slot; state.pickRank = null; }
+  else if (d.slot) {
+    state.pick = d.slot;
+    state.pickRank = null;
+    openSheetFully();  // たたんでいても、低くしていても、全部見えるように開く
+  }
   else if (d.open) {
     // 入力し忘れボタン：HEROの手札（空いている方）か、ボードの空いている場所を開く
     state.pick = d.open === 'hero'
       ? (state.hero[0] ? (state.hero[1] ? 'h0' : 'h1') : 'h0')
       : firstEmptyBoard(simulate());
     state.pickRank = null;
-    state.sheetMin = false;
+    openSheetFully();
   }
   else if (d.muck) {
     // マックの切り替え（マックにしたら、入れていたカードは消す）
@@ -1572,6 +1576,17 @@ $('amount').addEventListener('input', e => {
 // 8. 画面下の欄の高さを、つまみで変えられるようにする
 // ============================================
 const panelHeights = loadJSON('heights', {});  // 決めた高さ（{ pad: 180, sheet: 200 } のように保存）
+
+// カード選択の欄を、たたんでいても・つまみで低くしていても、中身が全部見えるように開く
+// （カードの枠や入力し忘れボタンを押したときに使う）
+function openSheetFully() {
+  state.sheetMin = false;
+  $('sheet-scroll').style.maxHeight = '';
+  if (panelHeights.sheet !== undefined) {
+    delete panelHeights.sheet;
+    saveJSON('heights', panelHeights);
+  }
+}
 
 // 画面の下の余白を、今出ている欄の高さに合わせる（中身が欄に隠れないように）
 function fitBodyPadding() {
