@@ -1163,7 +1163,7 @@ function renderPad(sim) {
   // 入力し忘れを知らせるボタン
   let sc = '';
   if (state.heroPos === null || state.hero.some(c => !c)) {
-    sc += '<button type="button" class="need-hero" data-open="hero">HEROのポジション・手札を選ぶ</button>';
+    sc += '<button type="button" class="need-hero" data-open="hero">HEROのポジション・手札を選ぶ（クリック）</button>';
   }
   const boardSlot = firstEmptyBoard(sim);
   if (boardSlot) {
