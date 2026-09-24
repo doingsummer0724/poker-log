@@ -140,6 +140,9 @@
   .card.target { border-color: var(--felt); box-shadow: 0 0 0 2px var(--felt); }
   .board-gap { width: 6px; }
   .s { color: var(--spade); } .h { color: var(--heart); } .d { color: var(--diamond); } .c { color: var(--club); }
+  .x { color: var(--muted); }  /* 色（マーク）不明 */
+  .hint.warn { color: var(--warn); font-weight: 700; }
+  button.muck { min-height: 62px; font-size: 13px; }
 
   /* アクション履歴 */
   .log { display: grid; gap: 4px; }
@@ -205,7 +208,7 @@
   /* カード選択（画面下） */
   .ranks { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
   .ranks button { font-family: var(--font-num); font-size: 19px; font-weight: 600; padding: 0; min-height: 42px; }
-  .suits { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .suits { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
   .suits button { font-size: 24px; min-height: 46px; }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -274,6 +277,7 @@
   <section>
     <h2>HERO</h2>
     <div class="panel">
+      <p class="hint warn" id="hero-warn">ポジションを選んでください。</p>
       <div class="pos" id="hero-pos"></div>
       <div class="row">
         <span class="label">手札</span>
@@ -374,6 +378,7 @@ const POSITIONS = {
 };
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 const SUITS = { s: '♠', h: '♥', d: '♦', c: '♣' };
+const SUIT_MARK = { ...SUITS, x: '?' };  // x＝色（マーク）を忘れたとき
 const ACT_NAME = { f: 'フォールド', x: 'チェック', c: 'コール', b: 'ベット', r: 'レイズ' };
 
 // ストリート（0=プリフロップ、1=フロップ、2=ターン、3=リバー、4=ショーダウン）
@@ -396,6 +401,7 @@ const state = {
   hero: [null, null], // 自分の手札（例：'Kh' は K♥）
   board: [null, null, null, null, null], // ボード5枚
   shows: {},          // ショーダウンで見えた相手の手札（例：{ BB: ['Qd', '6d'] }）
+  mucks: {},          // ショーダウンでマックした相手（例：{ CO: true }）
   pick: 'h0',         // カードを入れる場所（'h0'・'h1'＝手札、'b0'〜'b4'＝ボード、's:BB:0'＝相手）。null＝選んでいない
   pickRank: null,     // カード選択中の数字
   actions: [],        // 入力したアクション（例：{street:1, pos:'HJ', type:'b', to:13000}）
@@ -592,9 +598,14 @@ function presets(sim) {
 function handText(a, b) {
   if (!a || !b) return '??';
   // 強い数字が先に来るように並べる
-  const [x, y] = [a, b].sort((p, q) => RANKS.indexOf(p[0]) - RANKS.indexOf(q[0]));
+  // 同じ数字なら、色がわかっているカードを先にする
+  const [x, y] = [a, b].sort((p, q) =>
+    RANKS.indexOf(p[0]) - RANKS.indexOf(q[0]) || (p[1] === 'x') - (q[1] === 'x'));
+  const ranks = x[0] + y[0];
+  if (x[1] === 'x' && y[1] === 'x') return ranks;                 // 色が両方不明：例 KT
+  if (x[1] === 'x' || y[1] === 'x') return `${ranks}(${x[1]}${y[1]})`;  // 片方不明：例 KT(hx)
   const kind = x[0] === y[0] ? '' : (x[1] === y[1] ? 's' : 'o');  // s=スーテッド、o=オフスート
-  return `${x[0]}${y[0]}${kind}(${x[1]}${y[1]})`;                  // 例：KTo(hd)
+  return `${ranks}${kind}(${x[1]}${y[1]})`;                        // 例：KTo(hd)
 }
 
 function tokenOf(a) {
@@ -629,11 +640,12 @@ function buildText(sim) {
     order.forEach(pos => lines.push(`${pos} ${tokens[pos].join('/')}`));
   }
 
-  // ショーダウンで見えた相手の手札（例：BB Q6s(dd)）
+  // ショーダウンで見えた相手の手札（例：BB Q6s(dd)、マックなら BB muck）
   if (sim.street === 4 && sim.alive.length > 1) {
     const shown = sim.alive
       .filter(p => p.pos !== state.heroPos)
       .map(p => {
+        if (state.mucks[p.pos]) return `${p.pos} muck`;
         const c = state.shows[p.pos] || [];
         return c[0] && c[1] ? `${p.pos} ${handText(c[0], c[1])}` : null;
       })
@@ -678,7 +690,7 @@ function cardButton(slot, emptyLabel, disabled) {
   const target = slot === state.pick ? ' target' : '';
   const off = disabled ? ' disabled' : '';
   return c
-    ? `<button type="button" class="card ${c[1]}${target}" data-slot="${slot}"${off}>${c[0]}<span>${SUITS[c[1]]}</span></button>`
+    ? `<button type="button" class="card ${c[1]}${target}" data-slot="${slot}"${off}>${c[0]}<span>${SUIT_MARK[c[1]]}</span></button>`
     : `<button type="button" class="card empty${target}" data-slot="${slot}"${off}>${emptyLabel}</button>`;
 }
 
@@ -687,6 +699,7 @@ function renderHero() {
     .map(p => `<button type="button" data-pos="${p}" class="${p === state.heroPos ? 'on' : ''}">${p}</button>`)
     .join('');
   $('hero-cards').innerHTML = cardButton('h0', '1枚目') + cardButton('h1', '2枚目');
+  $('hero-warn').hidden = state.heroPos !== null;
 }
 
 function renderBoard(sim) {
@@ -704,17 +717,24 @@ function renderShowdown(sim) {
   const show = sim.street === 4 && sim.alive.length > 1;
   $('showdown-sec').hidden = !show;
   if (!show) return;
-  $('showdown').innerHTML = sim.alive
+  const warn = state.heroPos ? '' : '<p class="hint warn">HEROのポジションが未選択のため、自分も一覧に出ています。上の HERO でポジションを選んでください。</p>';
+  $('showdown').innerHTML = warn + sim.alive
     .filter(p => p.pos !== state.heroPos)
-    .map(p => `<div class="row"><span class="label pos-name">${p.pos}</span><div class="cards">${cardButton(`s:${p.pos}:0`, '1枚目')}${cardButton(`s:${p.pos}:1`, '2枚目')}</div></div>`)
-    .join('') + '<p class="hint">相手が見せた手札を入れると、記録テキストに追加されます（入れなくても大丈夫です）。</p>';
+    .map(p => {
+      const muck = !!state.mucks[p.pos];
+      // マックのときは、カードの枠を押せないようにする
+      return `<div class="row"><span class="label pos-name">${p.pos}</span><div class="cards">`
+        + cardButton(`s:${p.pos}:0`, '1枚目', muck) + cardButton(`s:${p.pos}:1`, '2枚目', muck)
+        + `<button type="button" class="muck${muck ? ' on' : ''}" data-muck="${p.pos}">マック</button></div></div>`;
+    })
+    .join('') + '<p class="hint">相手が見せた手札を入れると、記録テキストに追加されます（入れなくても大丈夫です）。見せずに捨てたときは「マック」を押してください。</p>';
 }
 
 // ボードの小さな表示（例：A♦ K♣ 9♦）
 function miniBoard(street) {
   return BOARD_OF_STREET[street].map(i => {
     const c = state.board[i];
-    return c ? `<span class="${c[1]}">${c[0]}${SUITS[c[1]]}</span>` : '<span>?</span>';
+    return c ? `<span class="${c[1]}">${c[0]}${SUIT_MARK[c[1]]}</span>` : '<span>?</span>';
   }).join(' ');
 }
 
@@ -816,7 +836,7 @@ function renderSheet() {
   const picking = state.pick !== null;
   $('sheet').hidden = !picking;
   if (!picking) return;
-  $('sheet-title').innerHTML = `<b>${slotName(state.pick)}</b>：数字 → マークの順に押してください`;
+  $('sheet-title').innerHTML = `<b>${slotName(state.pick)}</b>：数字 → マークの順に押してください（色を忘れたら ?）`;
 
   $('ranks').innerHTML = RANKS
     .map(r => `<button type="button" data-rank="${r}" class="${r === state.pickRank ? 'on' : ''}">${r}</button>`)
@@ -828,7 +848,9 @@ function renderSheet() {
   $('suits').innerHTML = Object.entries(SUITS).map(([s, mark]) => {
     const off = !state.pickRank || used.includes(state.pickRank + s);
     return `<button type="button" data-suit="${s}" class="${s}"${off ? ' disabled' : ''}>${mark}</button>`;
-  }).join('');
+  }).join('')
+    // 色（マーク）を忘れたとき用
+    + `<button type="button" data-suit="x" class="x"${state.pickRank ? '' : ' disabled'} aria-label="色不明">?</button>`;
 }
 
 // ============================================
@@ -890,7 +912,7 @@ function pickSuit(s) {
 
 function clearHand() {
   Object.assign(state, {
-    board: [null, null, null, null, null], shows: {},
+    board: [null, null, null, null, null], shows: {}, mucks: {},
     actions: [], actor: null, pending: null, amount: 0, message: '',
   });
   $('amount').value = '';
@@ -904,11 +926,20 @@ function changeSeats(n) {
   if (!POSITIONS[n].includes(state.heroPos)) state.heroPos = null;
 }
 
+// 次のハンドのHEROのポジション（ボタンが1つ動くので、1つ前のポジションになる。UTG の次は BB）
+function nextHeroPos() {
+  const list = POSITIONS[state.seats];
+  const i = list.indexOf(state.heroPos);
+  return i === -1 ? null : list[(i - 1 + list.length) % list.length];
+}
+
 function newHand() {
   const hasData = state.actions.length || usedCards().length;
-  if (hasData && !confirm('今のハンドを消して、新しいハンドを始めますか？')) return;
+  const nextPos = nextHeroPos();
+  const note = nextPos ? `\n（HEROのポジションは ${nextPos} になります）` : '';
+  if (hasData && !confirm('今のハンドを消して、新しいハンドを始めますか？' + note)) return;
   clearHand();
-  Object.assign(state, { heroPos: null, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true });
+  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true });
   $('copy-msg').textContent = '';
 }
 
@@ -943,6 +974,11 @@ document.addEventListener('click', e => {
   }
   else if (d.pos) state.heroPos = d.pos;  // もう一度押しても選択は外れない
   else if (d.slot) { state.pick = d.slot; state.pickRank = null; }
+  else if (d.muck) {
+    // マックの切り替え（マックにしたら、入れていたカードは消す）
+    state.mucks[d.muck] = !state.mucks[d.muck];
+    if (state.mucks[d.muck]) { delete state.shows[d.muck]; state.pick = null; }
+  }
   else if (d.rank) state.pickRank = d.rank;
   else if (d.suit) pickSuit(d.suit);
   else if (b.id === 'sheet-close') { state.pick = null; state.pickRank = null; }
@@ -966,7 +1002,14 @@ document.addEventListener('click', e => {
 });
 
 // 数字の入力欄が変わったとき
-$('sb').addEventListener('input', e => { state.sb = +e.target.value || 0; render(); });
+// SBを入れたら、BBにはその2倍を自動で入れる（1000/1500 などのときは、BBを手で直す）
+$('sb').addEventListener('input', e => {
+  state.sb = +e.target.value || 0;
+  state.bb = state.sb * 2;
+  $('bb').value = state.bb;
+  if (state.anteType === 'bb') { state.ante = state.bb; $('ante-amt').value = state.bb; }
+  render();
+});
 $('bb').addEventListener('input', e => {
   state.bb = +e.target.value || 0;
   if (state.anteType === 'bb') { state.ante = state.bb; $('ante-amt').value = state.bb; }
