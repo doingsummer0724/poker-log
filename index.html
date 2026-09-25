@@ -321,6 +321,9 @@
   .grid .gc.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); position: relative; z-index: 1; }
   .modal-foot { display: flex; align-items: center; gap: 8px; }
   .modal-foot button { min-height: 34px; font-size: 13px; flex-shrink: 0; }
+  .to-board { width: 100%; min-height: 48px; font-size: 16px; }
+  .board-foot { display: flex; align-items: center; gap: 8px; }
+  .board-foot button { min-height: 34px; font-size: 13px; flex-shrink: 0; margin-left: auto; }
   /* HEROの手札を選ぶときに出すポジションの列（1列に並べる） */
   .sheet-pos-wrap { display: grid; gap: 4px; }
   .sheet-pos { display: grid; gap: 4px; }
@@ -415,7 +418,10 @@
     <h2>ボード</h2>
     <div class="panel">
       <div class="cards" id="board"></div>
-      <p class="hint" id="board-hint"></p>
+      <div class="board-foot">
+        <p class="hint" id="board-hint"></p>
+        <button type="button" data-reset="board" id="board-reset">ボードを全部消す</button>
+      </div>
     </div>
   </section>
 
@@ -550,8 +556,11 @@
     <div class="grid" id="card-grid"></div>
     <div class="modal-foot">
       <button type="button" id="card-clear">この枠を消す</button>
+      <button type="button" data-reset="board" id="board-reset-pop">ボードを全部消す</button>
       <span class="hint">「?」の段＝マーク（色）を忘れたとき</span>
     </div>
+    <!-- HEROの手札が2枚そろったときだけ出る（押し間違えたら、閉じずにそのまま選び直せる） -->
+    <button type="button" id="to-board" class="primary to-board" hidden></button>
   </div>
 </div>
 
@@ -1188,7 +1197,12 @@ function renderBoard(sim) {
     return gap + cardButton('b' + i, names[i]);
   }).join('');
   $('board-hint').textContent = 'カードの枠を押すと、5枚続けて選べます（プリフロップ中でも入れられます）。';
+  $('board-reset').disabled = !state.board.some(c => c);
 }
+
+// まだ入れていないボードの最初の場所（ストリートに関係なく5枚の中から）
+const firstBlankBoard = () => ['b0', 'b1', 'b2', 'b3', 'b4'].find(s => !getCard(s)) || null;
+const boardName = slot => (+slot[1] < 3 ? 'フロップ' : slot === 'b3' ? 'ターン' : 'リバー');
 
 function renderShowdown(sim) {
   const show = sim.street === 4 && sim.alive.length > 1;
@@ -1366,6 +1380,21 @@ function renderSheet() {
     return `<button type="button" class="gc g-${s}${on}" data-card="${card}" aria-label="${name}"${off ? ' disabled' : ''}>${r}<span>${SUIT_MARK[s]}</span></button>`;
   }).join('')).join('');
   $('card-clear').disabled = !current;
+
+  // ボードを選んでいるときだけ「ボードを全部消す」を出す
+  $('board-reset-pop').hidden = state.pick[0] !== 'b';
+  $('board-reset-pop').disabled = !state.board.some(c => c);
+
+  // HEROの手札が2枚そろったら「フロップ選択へ」を出す（ポジションを選ぶまでは押せない）
+  const blank = firstBlankBoard();
+  const showNext = heroPick && state.hero.every(c => c) && blank !== null;
+  $('to-board').hidden = !showNext;
+  if (showNext) {
+    $('to-board').disabled = !state.heroPos;
+    $('to-board').textContent = state.heroPos
+      ? `${boardName(blank)}選択へ ▶`
+      : `ポジションを選ぶと、${boardName(blank)}選択へ進めます`;
+  }
 }
 
 // ============================================
@@ -1426,8 +1455,9 @@ function pickCard(card) {
   // ストリートが進んで自動で開いたときは、そのストリートまでのボードがそろったら閉じる
   // （プレイ中は、まだ先のカードはわからないため）
   if (state.pickAuto && state.pick[0] === 'b' && !firstEmptyBoard(simulate())) next = null;
-  // HEROの手札が2枚そろっても、ポジションがまだなら閉じない
-  if (!(next === null && state.pick[0] === 'h' && !state.heroPos)) state.pick = next;
+  // HEROの手札は2枚そろっても閉じない（押し間違えたら、そのまま選び直せる。
+  // 次へは「フロップ選択へ」ボタンか「閉じる」で進む）
+  if (!(next === null && state.pick[0] === 'h')) state.pick = next;
   if (state.pick === null) state.pickAuto = false;
 }
 
@@ -1529,11 +1559,16 @@ document.addEventListener('click', e => {
     state.anteType = d.ante;
     if (d.ante === 'bb') { state.ante = state.bb; $('ante-amt').value = state.bb; }
   }
-  else if (d.pos) {
-    const wasMissing = !state.heroPos;
-    state.heroPos = d.pos;  // もう一度押しても選択は外れない
-    // 手札が先にそろっていて、ポジションを選んだことで全部そろったら、アクション入力へ
-    if (wasMissing && state.pick && state.pick[0] === 'h' && state.hero.every(c => c)) closePicker();
+  else if (d.pos) state.heroPos = d.pos;  // もう一度押しても選択は外れない
+  else if (b.id === 'to-board') {
+    // HEROの手札の次は、ボードの空いている場所へ（5枚続けて入れられる）
+    state.pick = firstBlankBoard();
+    state.pickAuto = false;
+  }
+  else if (d.reset === 'board') {
+    if (!confirm('ボードのカードを全部消しますか？')) return;
+    state.board = [null, null, null, null, null];
+    if (state.pick && state.pick[0] === 'b') state.pick = 'b0';  // ポップアップで消したときは、フロップ1枚目から入れ直す
   }
   else if (d.slot) {
     // 手で開いたときは、ボード5枚を続けて入れられるようにする
