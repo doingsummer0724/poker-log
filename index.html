@@ -265,6 +265,28 @@
   .hist-pot { font-family: var(--font-num); font-size: 15px; color: var(--muted); }
   .hist-item .row button { min-height: 36px; font-size: 13px; }
   .hist-item .danger { color: var(--warn); }
+  /* セッション（日付ごとのまとまり） */
+  .sess { border-top: 1px solid var(--line); padding-block: 8px; }
+  .sess:first-child { border-top: 0; padding-top: 0; }
+  .sess > summary { display: flex; align-items: baseline; gap: 8px; list-style: none; }
+  .sess > summary::-webkit-details-marker { display: none; }
+  .sess > summary::after { content: '▼'; margin-left: auto; font-size: 11px; color: var(--muted); }
+  .sess[open] > summary::after { content: '▲'; }
+  .sess-date { font-family: var(--font-num); font-weight: 700; font-size: 18px; white-space: nowrap; }
+  .sess-name { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .sess-count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .sess > .row button { min-height: 36px; font-size: 13px; }
+  .sess .hist { margin-left: 4px; padding-left: 10px; border-left: 3px solid var(--felt-soft); }
+  .sess .hist-item:first-child { border-top: 0; }
+  .sess-in { display: grid; gap: 8px; margin-top: 4px; }
+  /* 文字や日付を入れる欄（セッション名・日付） */
+  input[type="text"], input[type="date"] {
+    font: inherit; font-size: 16px; min-height: 40px; padding: 0 8px; min-width: 0;
+    color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  }
+  input[type="text"] { flex: 1; }
+  #sess-date { width: 9.5em; }
+  .sess-new { font-size: 13px; padding: 0 10px; }
   /* バックアップ・復元 */
   .backup { border-top: 1px solid var(--line); padding-top: 8px; }
   .backup-in { display: grid; gap: 8px; margin-top: 8px; }
@@ -492,9 +514,10 @@
       <details class="backup">
         <summary class="hint">バックアップ・復元 ▼</summary>
         <div class="backup-in">
-          <p class="hint">「まとめてコピー」で履歴を全部コピーできます。LINEの自分用トークなどに貼って残しておくと安心です。戻すときは、そのテキストを下の欄に貼り付けて「復元する」を押してください（同じハンドは二重に入りません）。</p>
+          <p class="hint">履歴を丸ごと残したり、別の場所（ブラウザ⇔ホーム画面のアプリ、別のスマホ）に移したりするためのものです。コピーされるのは<b>アプリに戻すためのデータ</b>で、人が読む形ではありません（読む・共有するときは、各セッションの「まとめてコピー」を使ってください）。</p>
+          <p class="hint">LINEの自分用トークなどに貼って残しておき、戻すときはそのデータを下の欄に貼り付けて「復元する」を押してください（同じハンドは二重に入りません）。</p>
           <div class="row">
-            <button type="button" id="backup-copy" class="primary">履歴をまとめてコピー</button>
+            <button type="button" id="backup-copy" class="primary">バックアップ用データをコピー</button>
             <span class="copy-msg" id="backup-msg"></span>
           </div>
           <pre id="backup-pre" hidden></pre>
@@ -572,6 +595,17 @@
       <div class="turn"><b>シチュエーション</b></div>
       <button type="button" data-close="settings">閉じる</button>
     </div>
+    <!-- セッション（日付ごとのまとまり。日付が変わると自動で新しくなる） -->
+    <div class="row">
+      <span class="label">セッション</span>
+      <input type="date" id="sess-date" aria-label="セッションの日付">
+      <button type="button" id="sess-new" class="sess-new">新しく始める</button>
+    </div>
+    <div class="row">
+      <span class="label">名前</span>
+      <input type="text" id="sess-name" placeholder="店名・大会名など（なくてもOK）" aria-label="セッションの名前">
+    </div>
+    <p class="hint" id="sess-note"></p>
     <div class="row">
       <span class="label">人数</span>
       <div class="seg seats-seg">
@@ -1154,6 +1188,86 @@ const storageOK = saveJSON('test', 1);  // 保存できる環境か
 
 let history = loadJSON('history', []);  // ハンド履歴（新しい順）
 
+// --------------------------------------------
+// セッション（日付ごとのまとまり）
+//   { id, day：自動で切り替えるための日付, date：表示する日付（直せる）, name：名前 }
+//   日付が変わると、次に保存したハンドから自動で新しいセッションになる
+// --------------------------------------------
+let sessions = loadJSON('sessions', []);            // セッションの一覧
+let activeSessionId = loadJSON('session', null);    // 今のセッション
+const DAY_START = 6;  // 朝6時より前は前の日とみなす（夜中までのプレイが日付で2つに分かれないように）
+const two = x => String(x).padStart(2, '0');
+
+// その時刻が、何日のセッションか（例：'2026-09-25'）
+function sessionDay(t = new Date()) {
+  const d = new Date(t.getTime() - DAY_START * 3600 * 1000);
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+}
+function saveSessions() {
+  saveJSON('sessions', sessions);
+  saveJSON('session', activeSessionId);
+}
+const sessionById = id => sessions.find(s => s.id === id);
+const handsOf = id => history.filter(h => h.sessionId === id);
+
+// 新しいセッションを始める（ハンドが1つもない古いセッションは消しておく）
+function newSession() {
+  const day = sessionDay();
+  sessions = sessions.filter(s => handsOf(s.id).length);
+  const s = { id: 's' + Date.now(), day, date: day, name: '' };
+  sessions.unshift(s);
+  activeSessionId = s.id;
+  saveSessions();
+  return s;
+}
+
+// 今のセッション（日付が変わっていたら、新しいセッションにする）
+function activeSession() {
+  const today = sessionDay();
+  const s = sessionById(activeSessionId);
+  if (s && s.day === today) return s;
+  // 今日のセッションがすでにあれば（前の版で保存した今日のハンドなど）、それを続けて使う
+  const same = sessions.find(x => x.day === today);
+  if (same) { activeSessionId = same.id; saveSessions(); return same; }
+  return newSession();
+}
+
+// セッションが決まっていないハンド（前の版で保存したもの）を、保存した日付ごとのセッションに入れる
+function assignSessions(list) {
+  let changed = false;
+  list.forEach(h => {
+    if (h.sessionId && sessionById(h.sessionId)) return;
+    const day = sessionDay(new Date(h.savedAt));
+    // 同じ日なら、どのスマホでも同じ番号になるようにする（復元のときに重ならないように）
+    // セッションの一覧だけ消えてしまったときは、元の番号のまま作り直す
+    const id = h.sessionId || 'd' + day;
+    if (!sessionById(id)) sessions.push({ id, day, date: day, name: '' });
+    h.sessionId = id;
+    changed = true;
+  });
+  return changed;
+}
+if (assignSessions(history)) { saveJSON('history', history); saveSessions(); }
+
+// 表示用：'2026-09-25' → '9/25（金）'
+function dateLabel(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  const w = '日月火水木金土'[new Date(y, m - 1, d).getDay()];
+  return `${m}/${d}（${w}）`;
+}
+const timeLabel = iso => { const t = new Date(iso); return `${two(t.getHours())}:${two(t.getMinutes())}`; };
+
+// セッションのハンドを古い順に並べて、1から番号を振る
+const numbered = id => handsOf(id).reverse().map((h, i) => ({ h, no: i + 1 }));
+
+// 「まとめてコピー」のテキスト（読む・共有する用）
+function sessionText(id) {
+  const s = sessionById(id);
+  const list = numbered(id);
+  const head = `■ ${s.date.replace(/-/g, '/')}${s.name ? ' ' + s.name : ''}（${list.length}ハンド）`;
+  return [head, ...list.map(({ h, no }) => `#${no} ${timeLabel(h.savedAt)}\n${h.text}`)].join('\n\n');
+}
+
 function saveCurrent() {
   const data = {};
   SAVE_FIELDS.forEach(k => { data[k] = state[k]; });
@@ -1193,6 +1307,7 @@ function saveToHistory() {
   history.unshift({
     id: Date.now(),
     savedAt: new Date().toISOString(),
+    sessionId: activeSession().id,   // どのセッションのハンドか
     heroPos: state.heroPos,
     hero: [...state.hero],
     pot,
@@ -1214,22 +1329,49 @@ function renderHistory() {
       ? `${history.length}件（このスマホのブラウザの中だけに保存されます。閲覧データを消すと消えます）`
       : 'まだありません。「新しいハンド」を押すと、今のハンドがここに保存されます。';
 
-  const two = x => String(x).padStart(2, '0');
-  $('history').innerHTML = history.map(h => {
-    const t = new Date(h.savedAt);
-    const time = `${two(t.getMonth() + 1)}/${two(t.getDate())} ${two(t.getHours())}:${two(t.getMinutes())}`;
-    const cards = h.hero.map(c => c ? `<span class="${c[1]}">${c[0]}${SUIT_MARK[c[1]]}</span>` : '?').join('');
-    return `<details class="hist-item">
-      <summary><span class="hist-time">${time}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${h.pot == null ? '?' : fmt(h.pot)}</span></summary>
-      <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
-      <div class="row">
-        <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
-        <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>GTO Wizard用をコピー</button>
-        <button type="button" class="danger" data-hdel="${h.id}">削除</button>
-        <span class="copy-msg" id="hist-msg-${h.id}"></span>
+  // セッションごとにまとめる（新しいハンドがあるセッションが上）
+  const ids = [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id));
+  $('history').innerHTML = ids.map((id, gi) => {
+    const s = sessionById(id);
+    const list = numbered(id).reverse();  // 画面では新しい順に出す
+    return `<details class="sess"${gi === 0 ? ' open' : ''}>
+      <summary><span class="sess-date">${dateLabel(s.date)}</span><span class="sess-name">${escapeHTML(s.name)}</span><span class="sess-count">${list.length}ハンド</span></summary>
+      <div class="sess-in">
+        <div class="row">
+          <button type="button" class="primary" data-scopy="${id}">まとめてコピー</button>
+          <button type="button" data-sname="${id}">名前を変える</button>
+          <span class="copy-msg" id="sess-msg-${id}"></span>
+        </div>
+        <pre id="sess-pre-${id}" hidden></pre>
+        <div class="hist">${list.map(({ h, no }) => histItem(h, no)).join('')}</div>
       </div>
     </details>`;
   }).join('');
+}
+
+// 履歴の1ハンド分
+function histItem(h, no) {
+  const cards = h.hero.map(c => c ? `<span class="${c[1]}">${c[0]}${SUIT_MARK[c[1]]}</span>` : '?').join('');
+  return `<details class="hist-item">
+    <summary><span class="hist-time">#${no}　${timeLabel(h.savedAt)}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${h.pot == null ? '?' : fmt(h.pot)}</span></summary>
+    <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
+    <div class="row">
+      <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
+      <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>GTO Wizard用をコピー</button>
+      <button type="button" class="danger" data-hdel="${h.id}">削除</button>
+      <span class="copy-msg" id="hist-msg-${h.id}"></span>
+    </div>
+  </details>`;
+}
+
+// シチュエーションのポップアップの、セッション欄を今のセッションに合わせる
+// （入力中の欄は書き換えない：文字を打っている途中でカーソルが飛ばないように）
+function renderSession() {
+  const s = activeSession();
+  if (document.activeElement !== $('sess-date')) $('sess-date').value = s.date;
+  if (document.activeElement !== $('sess-name')) $('sess-name').value = s.name;
+  const n = handsOf(s.id).length;
+  $('sess-note').textContent = `このセッションのハンド：${n}件。日付が変わると（朝${DAY_START}時）、自動で新しいセッションになります。`;
 }
 
 function render() {
@@ -1240,6 +1382,7 @@ function render() {
   ['input', 'text', 'history'].forEach(v => { $(`view-${v}`).hidden = v !== state.view; });
   $('settings-pop').hidden = state.popup !== 'settings';
   $('log-pop').hidden = state.popup !== 'log';
+  if (state.popup === 'settings') renderSession();
 
   // ① シチュエーション（1行）とポット
   const anteLabel = { none: 'アンティなし', bb: 'BBアンティ', all: '各自アンティ' }[state.anteType];
@@ -1619,7 +1762,21 @@ function confirmEdit() {
   const later = state.actions.slice(i + 1).find(x => x.street === a.street && (x.type === 'b' || x.type === 'r') && x.to > 0);
   if (!err && later && to >= later.to) err = `後の${later.pos}の${ACT_NAME[later.type]}（${fmt(later.to)}）より小さい額にしてください。`;
   if (err) { state.editMsg = err; return; }
+  // この額にすると、同じストリートの後のレイズがミニマムに足りなくならないか
+  // （例：額なしのオープンを 7,000 にすると、後の3BETのミニマムは 9,000 → 11,000 に上がる）
+  const old = a.to;
   a.to = to;
+  for (let j = i + 1; j < state.actions.length; j++) {
+    const x = state.actions[j];
+    if (x.street !== a.street) break;
+    if (!((x.type === 'b' || x.type === 'r') && x.to > 0)) continue;
+    const before2 = simulate(state.actions.slice(0, j));
+    if (checkAmount(before2, x.pos, x.to)) {
+      a.to = old;
+      state.editMsg = `この額にすると、後の${x.pos}の${ACT_NAME[x.type]}（${fmt(x.to)}）がミニマム（${fmt(before2.minTo)}）に足りなくなります。先に${x.pos}の額を直してください。`;
+      return;
+    }
+  }
   state.editIdx = null;
   state.editMsg = '';
 }
@@ -1711,7 +1868,7 @@ function historyButton(d) {
     if (h) copyString(d.hcopy === 'gtow' ? h.gtow : h.text, `hist-text-${h.id}`, `hist-msg-${h.id}`);
     return;
   }
-  if (!confirm('このハンドを履歴から削除しますか？')) return;
+  if (!confirm('このハンドを履歴から削除しますか？\n（セッションの #番号 は詰め直されます）')) return;
   history = history.filter(x => String(x.id) !== d.hdel);
   saveJSON('history', history);
   renderHistory();
@@ -1738,11 +1895,19 @@ document.addEventListener('click', e => {
   if (b.id === 'copy') { copyText('output', 'copy-msg'); return; }
   if (b.id === 'copy-gtow') { copyText('gtow', 'copy-gtow-msg'); return; }
   if (d.hcopy || d.hdel) { historyButton(d); return; }
+  if (d.scopy) { copyString(sessionText(d.scopy), `sess-pre-${d.scopy}`, `sess-msg-${d.scopy}`); return; }
+  if (d.sname) { renameSession(d.sname); return; }
   if (b.id === 'backup-copy') { copyString(backupText(), 'backup-pre', 'backup-msg'); return; }
   if (b.id === 'restore-btn') { restoreBackup(); return; }
 
   if (d.view) state.view = d.view;                         // 画面の切り替え
   else if (b.id === 'situ-open') state.popup = 'settings';  // シチュエーションの変更
+  else if (b.id === 'sess-new') {
+    // 同じ日に分けたいとき用（日付が変わったときは自動で新しくなる）
+    if (!confirm('新しいセッションを始めますか？\nこれから保存するハンドは、新しいセッションに入ります。')) return;
+    newSession();
+    renderHistory();
+  }
   else if (b.id === 'hero-pos-btn') {
     // HEROのポジション：手札を選ぶポップアップ（ポジションもここで選ぶ）を開く
     state.pick = state.hero[0] && !state.hero[1] ? 'h1' : 'h0';
@@ -1811,6 +1976,18 @@ $('bb').addEventListener('input', e => {
   render();
 });
 $('ante-amt').addEventListener('input', e => { state.ante = +e.target.value || 0; render(); });
+// セッションの日付と名前（今のセッションを直す）
+$('sess-date').addEventListener('change', e => {
+  if (!e.target.value) return;
+  activeSession().date = e.target.value;
+  saveSessions();
+  renderHistory();
+});
+$('sess-name').addEventListener('input', e => {
+  activeSession().name = e.target.value.trim();
+  saveSessions();
+  renderHistory();
+});
 $('es').addEventListener('input', e => { state.es = +e.target.value || 0; render(); });
 // HEROの手札を選ぶ画面の有効スタック（卓の設定の欄と同じものを変える）
 $('es-sheet').addEventListener('input', e => {
@@ -1840,8 +2017,19 @@ $('amount').addEventListener('input', e => {
 // ============================================
 // 9. バックアップ・復元（ブラウザとホーム画面のアプリの間で履歴を移すときにも使う）
 // ============================================
+// version 2：セッションの一覧も含める（version 1 のデータも復元できる）
 function backupText() {
-  return JSON.stringify({ app: 'pokerlog', version: 1, exportedAt: new Date().toISOString(), history });
+  return JSON.stringify({ app: 'pokerlog', version: 2, exportedAt: new Date().toISOString(), sessions, history });
+}
+
+// 履歴の「名前を変える」（前のセッションにも名前を付けられる）
+function renameSession(id) {
+  const s = sessionById(id);
+  const name = prompt(`${dateLabel(s.date)} のセッションの名前（店名・大会名など）`, s.name);
+  if (name === null) return;  // キャンセル
+  s.name = name.trim();
+  saveSessions();
+  renderHistory();
 }
 
 function restoreBackup() {
@@ -1851,14 +2039,20 @@ function restoreBackup() {
   try { data = JSON.parse($('restore-text').value.trim()); } catch (err) { data = null; }
   if (!data || data.app !== 'pokerlog' || !Array.isArray(data.history)) {
     msg.classList.add('warn');
-    msg.textContent = '読み込めませんでした。「履歴をまとめてコピー」でコピーしたテキストを、そのまま貼り付けてください。';
+    msg.textContent = '読み込めませんでした。「バックアップ用データをコピー」でコピーしたデータを、そのまま貼り付けてください。';
     return;
   }
   // 同じハンド（同じ番号）は二重に入れない
   const ids = new Set(history.map(h => String(h.id)));
   const add = data.history.filter(h => h && h.id && !ids.has(String(h.id)));
+  // セッションも、まだないものだけ加える（前の版のデータは、日付ごとのセッションに入れる）
+  (Array.isArray(data.sessions) ? data.sessions : []).forEach(s => {
+    if (s && s.id && !sessionById(s.id)) sessions.push(s);
+  });
+  assignSessions(add);
   history = [...history, ...add].sort((a, b) => (a.savedAt < b.savedAt ? 1 : -1)).slice(0, 500);
   saveJSON('history', history);
+  saveSessions();
   renderHistory();
   $('restore-text').value = '';
   msg.textContent = `${add.length}件を復元しました` + (data.history.length > add.length ? `（すでにある${data.history.length - add.length}件は飛ばしました）` : '');
