@@ -355,6 +355,14 @@
   .save-list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .save-list small { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .save-new { display: grid; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 10px; }
+  /* 同じ名前のセッションの候補（名前を入れたときに出す） */
+  .same-list { display: grid; gap: 4px; }
+  .same-list:empty { display: none; }
+  .same-list .hint b { color: var(--felt); }
+  .same-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+  .same-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .same-row small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .same-row button { min-height: 34px; padding: 0 10px; font-size: 12.5px; flex-shrink: 0; }
   .save-keep { display: flex; gap: 8px; align-items: center; font-size: 13px; }
   .save-keep input { width: 20px; height: 20px; }
   .new-hand { min-height: 34px; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
@@ -678,6 +686,7 @@
         <span class="label">名前</span>
         <input type="text" id="save-name" placeholder="店名・大会名など（なくてもOK）" aria-label="新しいセッションの名前">
       </div>
+      <div class="same-list" id="save-same"></div>
     </div>
     <label class="save-keep"><input type="checkbox" id="save-keep" checked>このあとのハンドも、このセッションに入れる</label>
     <div class="msg" id="save-msg"></div>
@@ -703,6 +712,7 @@
       <span class="label">名前</span>
       <input type="text" id="sess-name" placeholder="店名・大会名など（なくてもOK）" aria-label="セッションの名前">
     </div>
+    <div class="same-list" id="sess-same"></div>
     <!-- 「新しく始める」を押したときだけ出る：日付と名前を入れて始める -->
     <div class="save-new" id="sess-form" hidden>
       <div class="row">
@@ -713,6 +723,7 @@
         <span class="label">名前</span>
         <input type="text" id="sf-name" placeholder="店名・大会名など（なくてもOK）" aria-label="新しいセッションの名前">
       </div>
+      <div class="same-list" id="sf-same"></div>
       <div class="row">
         <button type="button" id="sf-ok" class="primary">この日付・名前で始める</button>
         <button type="button" id="sf-cancel">やめる</button>
@@ -1343,8 +1354,68 @@ function pruneSessions() {
 
 // 同じ日付・同じ名前のセッションを探す（名前が空のときは探さない：同じ日に名前なしで分けたいとき用）
 function findSession(date, name, exceptId) {
-  if (!name) return null;
-  return sessions.find(s => s.id !== NONE && s.id !== exceptId && s.date === date && s.name === name) || null;
+  if (!normName(name)) return null;
+  return sessions.find(s => s.id !== NONE && s.id !== exceptId && s.date === date && normName(s.name) === normName(name)) || null;
+}
+
+// 名前を比べるための形（全角・半角、大文字・小文字、前後や重なった空白の違いを無視する）
+function normName(name) {
+  return (name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+// 同じ名前のセッション（日付は問わない。日付の新しい順）
+function sameNameSessions(name, exceptId) {
+  const key = normName(name);
+  if (!key) return [];
+  return sessions
+    .filter(s => s.id !== NONE && s.id !== exceptId && normName(s.name) === key && (handsOf(s.id).length || s.id === activeSessionId))
+    .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
+}
+
+// 名前の欄の下に、同じ名前のセッションと件数を出す
+//   boxId：出す場所、field：どの欄か（'sf'＝新しく始める、'save'＝保存先・移す先、'sess'＝今のセッションの名前）
+function renderSame(boxId, name, field, exceptId) {
+  const box = $(boxId);
+  const list = sameNameSessions(name, exceptId);
+  if (!list.length) {
+    // 新しく作る欄では「同じ名前はない」ことも伝える
+    box.innerHTML = normName(name) && field !== 'sess'
+      ? '<p class="hint">同じ名前のセッションはありません。入力した日付・名前で新しく作ります。</p>'
+      : '';
+    return;
+  }
+  const total = list.reduce((sum, s) => sum + handsOf(s.id).length, 0);
+  const verb = field === 'sess' ? 'ここにまとめる' : 'ここに入る';
+  const note = field === 'sess'
+    ? '（「ここにまとめる」で、今のセッションのハンドをそのセッションへ移します）'
+    : '（選ばずに進めると、日付が同じときはそのセッションに、違うときは新しいセッションになります）';
+  box.innerHTML = `<p class="hint">同じ名前のセッション：<b>${list.length}件（計${total}ハンド）</b>${note}</p>` +
+    list.map(s => `<div class="same-row">
+      <span>${dateLabel(s.date)} ${escapeHTML(s.name)}</span><small>${s.id === activeSessionId ? '今のセッション・' : ''}${handsOf(s.id).length}ハンド</small>
+      <button type="button" data-join="${field}" data-sid="${s.id}">${verb}</button>
+    </div>`).join('');
+}
+
+// 同じ名前の候補の「ここに入る」「ここにまとめる」
+function joinSession(field, id) {
+  if (field === 'sf') {
+    // 新しく始める → そのセッションを今のセッションにする（日付が違っても、今日のうちは続けて使う）
+    activeSessionId = id;
+    pinDay = sessionDay();
+    state.sessForm = false;
+    saveSessions();
+  } else if (field === 'save') {
+    // 保存先・移す先 → そのセッションを選ぶ
+    state.saveTarget = id;
+  } else if (field === 'sess') {
+    // 今のセッションを、そのセッションにまとめる
+    const cur = activeSession();
+    const to = sessionById(id);
+    if (!confirm(`今のセッション（${handsOf(cur.id).length}ハンド）を「${dateLabel(to.date)} ${to.name}」にまとめますか？`)) return;
+    mergeSession(cur.id, id);
+    $('sess-same').innerHTML = '';
+  }
+  renderHistory();
 }
 
 // セッション fromId のハンドを、セッション toId に移して1つにまとめる
@@ -2238,6 +2309,7 @@ function openSave(mode = 'save') {
   state.saveTarget = mode === 'save' ? activeSession().id : null;  // 保存のときは、はじめは今のセッションを選んでおく
   $('save-date').value = sessionDay();
   $('save-name').value = '';
+  $('save-same').innerHTML = '';
   $('save-keep').checked = true;
   $('save-msg').textContent = '';
 }
@@ -2372,10 +2444,12 @@ document.addEventListener('click', e => {
     state.view = d.view;
     if (d.view !== 'history' && state.selecting) { endSelect(); renderHistory(); }
   }
-  else if (b.id === 'situ-open') { state.popup = 'settings'; state.sessForm = false; }  // シチュエーションの変更
+  else if (b.id === 'situ-open') { state.popup = 'settings'; state.sessForm = false; $('sess-same').innerHTML = ''; }  // シチュエーションの変更
+  else if (d.join) joinSession(d.join, d.sid);  // 同じ名前のセッションに入る／まとめる
   else if (b.id === 'sess-new') {
     // 日付と名前を入れて始める欄を開く（日付が変わったときは自動で新しくなる）
     state.sessForm = true;
+    $('sf-same').innerHTML = '';
     $('sf-date').value = sessionDay();
     $('sf-name').value = '';
   }
@@ -2492,14 +2566,17 @@ $('sess-name').addEventListener('input', e => {
   renderHistory();
   render();  // 入力画面の1行目のセッション名も変える
 });
-// 名前を打ち終わったとき（欄から離れたとき）に、同じ日付・名前のセッションがあれば、まとめるか聞く
-// （打っている途中の「大会」などで、別のセッションとまとまらないように）
-$('sess-name').addEventListener('change', () => {
+// 名前を打ち終わったとき（✓・完了を押して欄から離れたとき）に、同じ名前のセッションと件数を出す
+// （まとめるかどうかは「ここにまとめる」で選ぶ。打っている途中の「大会」などで勝手にまとまらないように）
+$('sess-name').addEventListener('change', e => {
   const s = activeSession();
   if (s.id === NONE) return;
-  checkSameSession(s.id);
-  renderHistory();
-  render();
+  renderSame('sess-same', e.target.value, 'sess', s.id);
+});
+// 「新しく始める」と「新しいセッション」（保存先・移す先）の名前：入れている間も、確定したときも候補を出す
+['input', 'change'].forEach(ev => {
+  $('sf-name').addEventListener(ev, e => renderSame('sf-same', e.target.value, 'sf'));
+  $('save-name').addEventListener(ev, e => renderSame('save-same', e.target.value, 'save'));
 });
 // 「選んで移す」のチェック欄
 document.addEventListener('change', e => {
