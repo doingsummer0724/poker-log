@@ -41,6 +41,7 @@
     --heart: #cf2f3b;
     --diamond: #1f63c6;
     --club: #2f8a3c;
+    --on-suit: #ffffff;     /* カードの表で、マークの色の上に書く文字 */
     --font-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
     --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
     --font-mono: "JetBrains Mono", "Consolas", monospace;
@@ -54,6 +55,7 @@
       --line: #2a3630; --felt: #4fbf8a; --felt-soft: #1d3a2d;
       --aggr: #e8793c; --aggr-ink: #1a0f08; --warn: #ff8a80;
       --spade: #e5ece8; --heart: #ff6b76; --diamond: #6aa5ff; --club: #5fcf6e;
+      --on-suit: #10140f;
     }
   }
 
@@ -284,11 +286,41 @@
   .msg { font-size: 12.5px; color: var(--warn); }
   .msg:empty { display: none; }
 
-  /* カード選択（画面下） */
-  .ranks { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-  .ranks button { font-family: var(--font-num); font-size: 19px; font-weight: 600; padding: 0; min-height: 42px; }
-  .suits { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-  .suits button { font-size: 24px; min-height: 46px; }
+  /* ============================================
+     カード選択のポップアップ（縦＝マーク、横＝A〜2 の表）
+     ============================================ */
+  .modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+  .modal-back { position: absolute; inset: 0; background: rgb(0 0 0 / .4); }
+  .modal-box {
+    position: relative; width: 100%; max-width: 560px;
+    margin: 0 6px calc(6px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
+    max-height: calc(100vh - 12px);
+    max-height: calc(100dvh - 12px - env(safe-area-inset-top, 0px));
+    overflow-y: auto; overscroll-behavior: contain;
+    background: var(--surface); border-radius: 14px; padding: 10px 8px 12px;
+    display: grid; gap: 10px; box-shadow: 0 10px 30px rgb(0 0 0 / .25);
+  }
+  .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .modal-top button { min-height: 34px; font-size: 13px; flex-shrink: 0; }
+  /* 入れる場所（手札2枚・ボード5枚など）の並び */
+  .pick-slots { justify-content: center; }
+  /* カードの表：13列（A〜2）× 5段（♠♥♦♣と、色を忘れたとき用の?） */
+  .grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 2px; }
+  .grid .gc {
+    min-width: 0; min-height: 44px; padding: 0; border: 0; border-radius: 5px;
+    display: grid; place-content: center; line-height: 1;
+    font-family: var(--font-num); font-size: 18px; font-weight: 700; color: var(--on-suit);
+  }
+  .grid .gc span { display: block; font-size: 11px; margin-top: 2px; }
+  .grid .g-s { background: var(--spade); }
+  .grid .g-h { background: var(--heart); }
+  .grid .g-d { background: var(--diamond); }
+  .grid .g-c { background: var(--club); }
+  .grid .g-x { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .grid .gc:disabled { opacity: .15; }  /* もう使っているカード */
+  .grid .gc.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); position: relative; z-index: 1; }
+  .modal-foot { display: flex; align-items: center; gap: 8px; }
+  .modal-foot button { min-height: 34px; font-size: 13px; flex-shrink: 0; }
   /* HEROの手札を選ぶときに出すポジションの列（1列に並べる） */
   .sheet-pos-wrap { display: grid; gap: 4px; }
   .sheet-pos { display: grid; gap: 4px; }
@@ -374,7 +406,7 @@
         <span class="label">手札</span>
         <div class="cards" id="hero-cards"></div>
       </div>
-      <p class="hint">カードの枠を押すと、画面下でカードを選べます。</p>
+      <p class="hint">カードの枠を押すと、カードの表が開きます。</p>
     </div>
   </section>
 
@@ -494,15 +526,15 @@
   </div>
 </div>
 
-<!-- 画面の下に固定：カード選択（カードの枠を押したときだけ出る） -->
-<div class="pad" id="sheet" hidden>
-  <div class="grip" id="sheet-grip" title="押したまま上下に動かすと高さを変えられます（ダブルタップで元に戻る）"><span></span></div>
-  <div class="pad-in">
-    <div class="pad-top">
+<!-- カード選択のポップアップ（カードの枠を押したときだけ出る） -->
+<div class="modal" id="sheet" hidden>
+  <!-- 周りの暗い部分：押すと閉じる -->
+  <div class="modal-back" id="sheet-back"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="modal-top">
       <div class="turn" id="sheet-title"></div>
       <button type="button" id="sheet-close">閉じる</button>
     </div>
-    <div class="pad-scroll" id="sheet-scroll">
     <!-- HEROの手札を選ぶときだけ、ポジションも選べるようにする -->
     <div class="sheet-pos-wrap" id="sheet-pos-wrap" hidden>
       <p class="hint" id="sheet-pos-hint"></p>
@@ -512,8 +544,13 @@
         <input type="number" inputmode="decimal" id="es-sheet" aria-label="有効スタック（BB）"> BB
       </label>
     </div>
-    <div class="ranks" id="ranks"></div>
-    <div class="suits" id="suits"></div>
+    <!-- 入れる場所（押すと、その場所を選び直せる） -->
+    <div class="cards pick-slots" id="pick-slots"></div>
+    <!-- カードの表（1回押すだけで1枚決まる） -->
+    <div class="grid" id="card-grid"></div>
+    <div class="modal-foot">
+      <button type="button" id="card-clear">この枠を消す</button>
+      <span class="hint">「?」の段＝マーク（色）を忘れたとき</span>
     </div>
   </div>
 </div>
@@ -558,18 +595,14 @@ const state = {
   shows: {},          // ショーダウンで見えた相手の手札（例：{ BB: ['Qd', '6d'] }）
   mucks: {},          // ショーダウンでマックした相手（例：{ CO: true }）
   pick: 'h0',         // カードを入れる場所（'h0'・'h1'＝手札、'b0'〜'b4'＝ボード、's:BB:0'＝相手）。null＝選んでいない
-  pickRank: null,     // カード選択中の数字
+  pickAuto: false,    // ストリートが進んで、ボードの選択が自動で開いたか
   actions: [],        // 入力したアクション（例：{street:1, pos:'HJ', type:'b', to:13000}）
   actor: null,        // 「誰が」で選んでいる人
   pending: null,      // ベット・レイズを押して額の入力待ちなら 'b' か 'r'
   amount: 0,          // 入力中の額
   message: '',        // 注意メッセージ
   padOpen: true,      // 画面下のアクション入力を開いているか
-  sheetMin: false,    // HEROの手札選択をたたんでいるか
 };
-
-// HEROのポジションと手札2枚がそろっているか
-const heroComplete = () => !!state.heroPos && state.hero.every(c => c);
 
 // 短く書くための道具
 const $ = id => document.getElementById(id);
@@ -629,13 +662,17 @@ function firstEmptyBoard(sim) {
   return i === undefined ? null : 'b' + i;
 }
 
+// 同じまとまりの場所（手札なら2枚、ボードなら5枚）
+function slotGroup(slot) {
+  if (slot[0] === 'h') return ['h0', 'h1'];
+  if (slot[0] === 'b') return ['b0', 'b1', 'b2', 'b3', 'b4'];  // ボードは、まだそのストリートでなくても5枚続けて入れられる
+  const pos = slot.split(':')[1];
+  return [`s:${pos}:0`, `s:${pos}:1`];
+}
+
 // カードを1枚入れたあと、同じまとまりの次の空いている場所
-function nextSlot(slot, sim) {
-  let group;
-  if (slot[0] === 'h') group = ['h0', 'h1'];
-  else if (slot[0] === 'b') group = [0, 1, 2, 3, 4].filter(i => boardOpen(i, sim)).map(i => 'b' + i);
-  else { const pos = slot.split(':')[1]; group = [`s:${pos}:0`, `s:${pos}:1`]; }
-  return group.find(s => !getCard(s)) || null;
+function nextSlot(slot) {
+  return slotGroup(slot).find(s => !getCard(s)) || null;
 }
 
 // ============================================
@@ -1126,7 +1163,7 @@ function render() {
   saveCurrent();  // 画面が変わるたびに、入力中のハンドを保存する
 }
 
-// カードの枠（押すと、画面下でそのカードを選べる）
+// カードの枠（押すと、ポップアップでそのカードを選べる）
 function cardButton(slot, emptyLabel, disabled) {
   const c = getCard(slot);
   const target = slot === state.pick ? ' target' : '';
@@ -1148,11 +1185,9 @@ function renderBoard(sim) {
   const names = ['flop', 'flop', 'flop', 'turn', 'river'];
   $('board').innerHTML = [0, 1, 2, 3, 4].map(i => {
     const gap = i === 3 || i === 4 ? '<div class="board-gap"></div>' : '';
-    return gap + cardButton('b' + i, names[i], !boardOpen(i, sim) && !state.board[i]);
+    return gap + cardButton('b' + i, names[i]);
   }).join('');
-  $('board-hint').textContent = sim.street === 0 && !sim.done
-    ? 'プリフロップが終わると入力できます。'
-    : 'カードの枠を押すと、画面下でカードを選べます。';
+  $('board-hint').textContent = 'カードの枠を押すと、5枚続けて選べます（プリフロップ中でも入れられます）。';
 }
 
 function renderShowdown(sim) {
@@ -1217,9 +1252,7 @@ function renderLog(sim) {
 }
 
 function renderPad(sim) {
-  const picking = state.pick !== null;
-  $('pad').hidden = picking;  // カード選択中は、アクション入力の代わりにカード選択を出す
-  document.body.classList.toggle('pad-min', !picking && (sim.done || !state.padOpen));
+  document.body.classList.toggle('pad-min', sim.done || !state.padOpen);
   requestAnimationFrame(fitBodyPadding);  // 表示が変わったら、下の余白を合わせる
 
   $('undo').disabled = state.actions.length === 0;
@@ -1296,15 +1329,10 @@ function renderSheet() {
   const picking = state.pick !== null;
   $('sheet').hidden = !picking;
   if (!picking) return;
-  $('sheet-title').innerHTML = `<b>${slotName(state.pick)}</b>：数字 → マークの順に押してください（色を忘れたら ?）`;
+  $('sheet-title').innerHTML = `<b>${slotName(state.pick)}</b>を選んでください`;
 
-  // HEROのポジション・手札がそろうまでは、閉じずに「たたむ／ひらく」にする
+  // HEROの手札を選ぶときは、ポジションと有効スタックも出す
   const heroPick = state.pick[0] === 'h';
-  const keepHero = heroPick && !heroComplete();
-  const mini = keepHero && state.sheetMin;
-  $('sheet-scroll').hidden = mini;
-  $('sheet-close').textContent = keepHero ? (mini ? 'ひらく ▲' : 'たたむ ▼') : '閉じる';
-  if (mini) $('sheet-title').innerHTML = '<b>HEROのポジション・手札</b>がまだです（「ひらく」で入力）';
   $('sheet-pos-wrap').hidden = !heroPick;
   if (heroPick) {
     const list = POSITIONS[state.seats];
@@ -1320,19 +1348,24 @@ function renderSheet() {
     if (document.activeElement !== $('es-sheet')) $('es-sheet').value = state.es;
   }
 
-  $('ranks').innerHTML = RANKS
-    .map(r => `<button type="button" data-rank="${r}" class="${r === state.pickRank ? 'on' : ''}">${r}</button>`)
-    .join('');
+  // 入れる場所の並び（ボードは フロップ3枚｜ターン｜リバー の間をあける）
+  const labels = { h: ['1枚目', '2枚目'], b: ['flop', 'flop', 'flop', 'turn', 'river'], s: ['1枚目', '2枚目'] };
+  $('pick-slots').innerHTML = slotGroup(state.pick).map((slot, i) => {
+    const gap = slot === 'b3' || slot === 'b4' ? '<div class="board-gap"></div>' : '';
+    return gap + cardButton(slot, labels[state.pick[0]][i]);
+  }).join('');
 
-  // もう使っているカードは押せない（今選び直しているカードは除く）
+  // カードの表（縦＝♠♥♦♣?、横＝A〜2）。もう使っているカードは押せない（今選び直しているカードは除く）
   const current = getCard(state.pick);
   const used = usedCards().filter(c => c !== current);
-  $('suits').innerHTML = Object.entries(SUITS).map(([s, mark]) => {
-    const off = !state.pickRank || used.includes(state.pickRank + s);
-    return `<button type="button" data-suit="${s}" class="${s}"${off ? ' disabled' : ''}>${mark}</button>`;
-  }).join('')
-    // 色（マーク）を忘れたとき用
-    + `<button type="button" data-suit="x" class="x"${state.pickRank ? '' : ' disabled'} aria-label="色不明">?</button>`;
+  $('card-grid').innerHTML = ['s', 'h', 'd', 'c', 'x'].map(s => RANKS.map(r => {
+    const card = r + s;
+    const off = s !== 'x' && used.includes(card);  // 色不明（?）は何枚でも選べる
+    const on = card === current ? ' on' : '';
+    const name = s === 'x' ? `${r}（色不明）` : `${r}${SUIT_MARK[s]}`;
+    return `<button type="button" class="gc g-${s}${on}" data-card="${card}" aria-label="${name}"${off ? ' disabled' : ''}>${r}<span>${SUIT_MARK[s]}</span></button>`;
+  }).join('')).join('');
+  $('card-clear').disabled = !current;
 }
 
 // ============================================
@@ -1347,11 +1380,11 @@ function record(type, to) {
   $('amount').value = '';
   state.message = '';
 
-  // ストリートが進んだら、ボードのカード選択を自動で開く
+  // ストリートが進んだら、ボードのカード選択を自動で開く（まだ入れていなければ）
   const after = simulate();
   if (after.street > before.street && after.alive.length > 1) {
-    const slot = [0, 1, 2, 3, 4].map(i => 'b' + i).find(s => !getCard(s) && boardOpen(+s[1], after));
-    if (slot) { state.pick = slot; state.pickRank = null; }
+    const slot = firstEmptyBoard(after);
+    if (slot) { state.pick = slot; state.pickAuto = true; }
   }
 }
 
@@ -1386,13 +1419,22 @@ function confirmAmount() {
   }
 }
 
-function pickSuit(s) {
-  setCard(state.pick, state.pickRank + s);
-  state.pickRank = null;
-  const next = nextSlot(state.pick, simulate());  // 次の空いている場所へ。なければ閉じる
+// カードの表で1枚選んだとき
+function pickCard(card) {
+  setCard(state.pick, card);
+  let next = nextSlot(state.pick);  // 次の空いている場所へ。なければ閉じる
+  // ストリートが進んで自動で開いたときは、そのストリートまでのボードがそろったら閉じる
+  // （プレイ中は、まだ先のカードはわからないため）
+  if (state.pickAuto && state.pick[0] === 'b' && !firstEmptyBoard(simulate())) next = null;
   // HEROの手札が2枚そろっても、ポジションがまだなら閉じない
   if (!(next === null && state.pick[0] === 'h' && !state.heroPos)) state.pick = next;
-  state.sheetMin = false;
+  if (state.pick === null) state.pickAuto = false;
+}
+
+// カード選択を閉じる
+function closePicker() {
+  state.pick = null;
+  state.pickAuto = false;
 }
 
 function clearHand() {
@@ -1430,7 +1472,7 @@ function newHand() {
     renderHistory();
   }
   clearHand();
-  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickRank: null, padOpen: true, sheetMin: false });
+  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickAuto: false, padOpen: true });
   $('copy-msg').textContent = '';
   $('copy-gtow-msg').textContent = '';
 }
@@ -1491,32 +1533,28 @@ document.addEventListener('click', e => {
     const wasMissing = !state.heroPos;
     state.heroPos = d.pos;  // もう一度押しても選択は外れない
     // 手札が先にそろっていて、ポジションを選んだことで全部そろったら、アクション入力へ
-    if (wasMissing && state.pick && state.pick[0] === 'h' && state.hero.every(c => c) && !state.pickRank) state.pick = null;
+    if (wasMissing && state.pick && state.pick[0] === 'h' && state.hero.every(c => c)) closePicker();
   }
   else if (d.slot) {
+    // 手で開いたときは、ボード5枚を続けて入れられるようにする
     state.pick = d.slot;
-    state.pickRank = null;
-    openSheetFully();  // たたんでいても、低くしていても、全部見えるように開く
+    state.pickAuto = false;
   }
   else if (d.open) {
     // 入力し忘れボタン：HEROの手札（空いている方）か、ボードの空いている場所を開く
     state.pick = d.open === 'hero'
       ? (state.hero[0] ? (state.hero[1] ? 'h0' : 'h1') : 'h0')
       : firstEmptyBoard(simulate());
-    state.pickRank = null;
-    openSheetFully();
+    state.pickAuto = false;
   }
   else if (d.muck) {
     // マックの切り替え（マックにしたら、入れていたカードは消す）
     state.mucks[d.muck] = !state.mucks[d.muck];
-    if (state.mucks[d.muck]) { delete state.shows[d.muck]; state.pick = null; }
+    if (state.mucks[d.muck]) { delete state.shows[d.muck]; closePicker(); }
   }
-  else if (d.rank) state.pickRank = d.rank;
-  else if (d.suit) pickSuit(d.suit);
-  else if (b.id === 'sheet-close') {
-    if (state.pick[0] === 'h' && !heroComplete()) state.sheetMin = !state.sheetMin;  // HERO未入力：たたむ／ひらく
-    else { state.pick = null; state.pickRank = null; }                               // それ以外：閉じる
-  }
+  else if (d.card) pickCard(d.card);
+  else if (b.id === 'card-clear') setCard(state.pick, null);
+  else if (b.id === 'sheet-close') closePicker();
   else if (b.id === 'pad-toggle') state.padOpen = !state.padOpen;
   else if (d.actor) { state.actor = d.actor; state.pending = null; state.message = ''; }
   else if (d.act) doAction(d.act);
@@ -1528,7 +1566,7 @@ document.addEventListener('click', e => {
   else if (b.id === 'ok') confirmAmount();
   else if (b.id === 'undo') {
     state.actions.pop();
-    Object.assign(state, { actor: null, pending: null, message: '', pick: null, pickRank: null });
+    Object.assign(state, { actor: null, pending: null, message: '', pick: null, pickAuto: false });
   }
   else if (b.id === 'new-hand' || b.id === 'next-hand') newHand();
   else return;
@@ -1575,23 +1613,11 @@ $('amount').addEventListener('input', e => {
 // ============================================
 // 8. 画面下の欄の高さを、つまみで変えられるようにする
 // ============================================
-const panelHeights = loadJSON('heights', {});  // 決めた高さ（{ pad: 180, sheet: 200 } のように保存）
+const panelHeights = loadJSON('heights', {});  // 決めた高さ（{ pad: 180 } のように保存）
 
-// カード選択の欄を、たたんでいても・つまみで低くしていても、中身が全部見えるように開く
-// （カードの枠や入力し忘れボタンを押したときに使う）
-function openSheetFully() {
-  state.sheetMin = false;
-  $('sheet-scroll').style.maxHeight = '';
-  if (panelHeights.sheet !== undefined) {
-    delete panelHeights.sheet;
-    saveJSON('heights', panelHeights);
-  }
-}
-
-// 画面の下の余白を、今出ている欄の高さに合わせる（中身が欄に隠れないように）
+// 画面の下の余白を、アクション入力の欄の高さに合わせる（中身が欄に隠れないように）
 function fitBodyPadding() {
-  const el = !$('sheet').hidden ? $('sheet') : $('pad');
-  document.body.style.paddingBottom = `${el.offsetHeight + 16}px`;
+  document.body.style.paddingBottom = `${$('pad').offsetHeight + 16}px`;
 }
 
 function makeResizable(key, gripId, scrollId) {
@@ -1681,8 +1707,10 @@ function makeResizable(key, gripId, scrollId) {
   });
 }
 makeResizable('pad', 'pad-grip', 'pad-scroll');
-makeResizable('sheet', 'sheet-grip', 'sheet-scroll');
 window.addEventListener('resize', fitBodyPadding);
+
+// カード選択のポップアップの外側（暗い部分）を押したら閉じる
+$('sheet-back').addEventListener('click', () => { closePicker(); render(); });
 
 // ============================================
 // 9. バックアップ・復元（ブラウザとホーム画面のアプリの間で履歴を移すときにも使う）
