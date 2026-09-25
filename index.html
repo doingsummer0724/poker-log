@@ -64,6 +64,8 @@
      ============================================ */
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  /* 画面全体を「上部」「中身」の縦並びにして、画面の高さにぴったり収める */
+  html, body { height: 100%; }
   body {
     margin: 0;
     background: var(--bg);
@@ -71,42 +73,75 @@
     font-family: var(--font-jp);
     font-size: 15px;
     line-height: 1.5;
-    padding-inline: 16px;
-    padding-block: 0 380px; /* 下に固定したボタン群に隠れないよう余白を取る */
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;   /* dvh：スマホのアドレスバーを除いた高さ */
+    overflow: hidden;
     -webkit-text-size-adjust: 100%;
   }
-  /* アクション入力をたたんでいるときは、下の余白を小さくする */
-  body.pad-min { padding-block-end: 150px; }
-  .wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 14px; }
-
-  /* 卓の設定（1行にたたむ） */
-  .settings { display: grid; gap: 8px; }
-  .settings summary {
-    display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none;
-    padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  /* 切り替える画面（入力・テキスト・履歴）。はみ出すときは、その中だけスクロールする */
+  .view {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    width: 100%; max-width: 560px; margin: 0 auto;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
+    display: grid; align-content: start; gap: 14px;
   }
-  .settings summary::-webkit-details-marker { display: none; }
-  .settings-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .12em; white-space: nowrap; }
-  .settings-sum { font-size: 13px; font-variant-numeric: tabular-nums; }
-  .settings-open { margin-left: auto; font-size: 12.5px; color: var(--felt); font-weight: 700; white-space: nowrap; }
-  .settings[open] .settings-open { visibility: hidden; }
-  .settings > .panel { margin-top: 8px; }
+  /* 入力の画面は、アクション履歴の部分が残りの高さを使う */
+  .view-input { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ① シチュエーション（1行。押すと設定のポップアップ） */
+  .situ {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 0 12px;
+    font-size: 13px; font-variant-numeric: tabular-nums; text-align: left; flex-shrink: 0;
+  }
+  .situ-edit { margin-left: auto; font-size: 12.5px; color: var(--felt); font-weight: 700; white-space: nowrap; }
+
+  /* ② HEROの手札とポット */
+  .hand-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .row-label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .1em; }
+  .hero-pos-btn { font-family: var(--font-num); font-size: 18px; font-weight: 700; min-height: 44px; padding: 0 10px; }
+  .hero-pos-btn.warn { color: var(--warn); border-color: var(--warn); font-family: var(--font-jp); font-size: 12.5px; }
+  .hand-row .card { width: 38px; height: 50px; font-size: 21px; }
+  .hand-row button.card { min-height: 50px; }
+  .hand-row .card span { font-size: 15px; }
+  .hand-row .card.empty.need { border-color: var(--warn); color: var(--warn); }
+  .pot {
+    margin-left: auto; text-align: right; line-height: 1.05;
+    font-family: var(--font-num); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .pot small { display: block; font-size: 13px; color: var(--muted); letter-spacing: .06em; font-weight: 600; }
+
+  /* ③ ボード */
+  .board-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .board-reset { margin-left: auto; min-height: 50px; padding: 0 8px; font-size: 12px; line-height: 1.3; color: var(--muted); }
+
+  /* ④ アクション履歴（短い表示。残りの高さを使い、あふれたらその中でスクロール） */
+  .log-mini {
+    flex: 1 1 auto; min-height: 56px; overflow-y: auto; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px;
+  }
+  .log-mini-head { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: .08em; }
+  .log-mini-head span { color: var(--felt); letter-spacing: 0; }
+  .lm { display: flex; gap: 8px; font-variant-numeric: tabular-nums; font-size: 14px; line-height: 1.45; }
+  .lm b { font-family: var(--font-num); font-weight: 700; color: var(--muted); min-width: 3.4em; flex-shrink: 0; }
+  .lm b small { display: block; font-size: 11.5px; font-weight: 500; }
+  .lm .who { font-family: var(--font-num); font-weight: 700; font-size: 15px; }
+  .lm .who.hero { color: var(--felt); }
+  .lm .parts { display: flex; flex-wrap: wrap; column-gap: 12px; }
+
   /* HEROの手札を選ぶ画面の、有効スタック入力 */
   .sheet-es { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
   .sheet-es input[type="number"] { width: 5em; min-height: 36px; }
 
-  /* 上部に固定：今のストリートとポット */
+  /* 上部：画面の切り替えと「新しいハンド」 */
   .topbar {
-    position: sticky; top: 0; z-index: 5;
-    margin-inline: -16px; padding: 10px 16px;
-    padding-top: calc(10px + env(safe-area-inset-top, 0px));  /* ホーム画面から開いたとき、時計などの表示と重ならないように */
+    flex-shrink: 0; padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));  /* ホーム画面から開いたとき、時計などの表示と重ならないように */
     background: var(--bg); border-bottom: 1px solid var(--line);
-    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
   }
-  .street { font-family: var(--font-num); font-weight: 700; font-size: 22px; letter-spacing: .06em; }
-  .blinds { color: var(--muted); font-size: 13px; }
-  .pot { font-family: var(--font-num); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .pot small { font-size: 13px; color: var(--muted); font-family: var(--font-jp); font-weight: 500; margin-right: 4px; }
+  .tabs { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .tabs button { border: 0; border-radius: 0; border-right: 1px solid var(--line); min-height: 34px; padding: 0 12px; font-size: 13.5px; }
+  .tabs button:last-child { border-right: 0; }
 
   .note {
     font-size: 12.5px; color: var(--muted); margin: 0;
@@ -230,55 +265,43 @@
   .copy-msg.warn { color: var(--warn); }
 
   /* ============================================
-     画面の下に固定する部分（アクション入力・カード選択）
+     ⑤ アクション入力（入力の画面の一番下）
      ============================================ */
-  .pad {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    background: var(--surface); border-top: 1px solid var(--line);
-    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
-    box-shadow: 0 -6px 18px rgb(0 0 0 / .08);
+  .act-area {
+    flex-shrink: 0; display: grid; gap: 7px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px 10px;
   }
-  .pad-in { max-width: 560px; margin: 0 auto; display: grid; gap: 8px; }
-  .pad-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .pad-top button { min-height: 34px; font-size: 13px; }
-  .pad-btns { display: flex; gap: 6px; flex-shrink: 0; }
-  /* 高さを変えるつまみ（マウスでも指でも動かせる） */
-  .pad { padding-top: 0; }
-  .grip {
-    display: grid; place-items: center; height: 30px; margin-inline: -16px;
-    cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none;
-    -webkit-touch-callout: none;  /* iPhoneの長押しメニューを出さない */
+  .act-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .act-top button { min-height: 32px; font-size: 13px; flex-shrink: 0; }
+  /* 今のストリート（PF・FLOP・TURN・RIVER） */
+  .streets { display: flex; gap: 4px; }
+  .streets span {
+    font-family: var(--font-num); font-weight: 700; font-size: 14px; letter-spacing: .04em;
+    padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted);
   }
-  .grip span { width: 56px; height: 6px; border-radius: 99px; background: var(--line); }
-  /* 「〇〇の番です」の行でもつかめる（ボタン以外の部分） */
-  .pad .pad-top { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: ns-resize; }
-  .pad .pad-top button { cursor: pointer; }
-  .grip:hover span, .grip.dragging span { background: var(--muted); }
-  /* 高さを低くしたときは、この部分がスクロールする */
-  .pad-scroll { display: grid; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
+  .streets .done { color: var(--ink); }
+  .streets .now { background: var(--felt); border-color: var(--felt); color: var(--surface); }
+  .pad-body { display: grid; gap: 7px; }
   .next-hand { width: 100%; min-height: 50px; font-size: 16px; }
-  /* 画面上部の「新しいハンド」 */
-  .top-right { display: flex; align-items: center; gap: 10px; }
   .new-hand { min-height: 34px; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
-  .pad-body { display: grid; gap: 8px; }
-  /* 入力し忘れを知らせるボタン（押すとカード選択が開く） */
-  .shortcuts { display: grid; gap: 6px; }
-  .shortcuts:empty { display: none; }
-  .shortcuts button { width: 100%; min-height: 40px; font-weight: 700; font-size: 14px; }
-  .shortcuts .need-hero { color: var(--warn); border-color: var(--warn); }
-  .shortcuts .need-board { color: var(--felt); border-color: var(--felt); }
+  /* ショーダウン（相手の手札） */
+  .showdown { display: grid; gap: 8px; }
+  .showdown .card { width: 40px; height: 52px; font-size: 21px; }
+  .showdown button.card, .showdown button.muck { min-height: 52px; }
+  /* 小さくしたカードの空き枠の文字（「手札」「1枚目」など） */
+  .hand-row .card.empty, .showdown .card.empty { font-size: 11px; }
   .turn { font-size: 13px; color: var(--muted); }
   .turn b { color: var(--ink); font-family: var(--font-num); font-size: 18px; margin-right: 4px; }
   .who-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
   .who-row .who-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
   .who-row button { min-height: 36px; padding: 0 9px; font-family: var(--font-num); font-size: 16px; font-weight: 600; }
   .acts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-  .acts button { min-height: 48px; font-weight: 700; padding: 0; font-size: 14px; line-height: 1.15; }
+  .acts button { min-height: 48px; font-weight: 700; padding: 0; font-size: 12.5px; line-height: 1.15; white-space: nowrap; letter-spacing: -.03em; }
   .acts button small { display: block; font-family: var(--font-num); font-size: 13px; font-weight: 600; }
   .acts .aggr { background: var(--aggr); border-color: var(--aggr); color: var(--aggr-ink); }
   .acts .aggr.pending { box-shadow: 0 0 0 3px var(--ink); }
   .sizes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
-  .sizes button { min-height: 36px; font-size: 13px; padding: 0; }
+  .sizes button { min-height: 36px; font-size: 12.5px; padding: 0; white-space: nowrap; letter-spacing: -.03em; }
   .amount-row { display: flex; gap: 8px; align-items: center; }
   .amount-row input { flex: 1; width: auto; min-width: 0; }
   .amount-row .bb { font-family: var(--font-num); font-size: 15px; color: var(--muted); min-width: 4em; }
@@ -340,104 +363,81 @@
      （中身の多くは、下の <script> が自動で書き込む）
      ============================================ -->
 
-<!-- 上部：今のストリートとポット -->
+<!-- 上部：画面の切り替えと「新しいハンド」 -->
 <header class="topbar">
-  <div>
-    <div class="street" id="street">PREFLOP</div>
-    <div class="blinds" id="summary"></div>
-  </div>
-  <div class="top-right">
-    <div class="pot"><small>ポット</small><span id="pot">0</span></div>
-    <button type="button" id="new-hand" class="new-hand">新しいハンド</button>
-  </div>
+  <nav class="tabs">
+    <button type="button" data-view="input">入力</button>
+    <button type="button" data-view="text">テキスト</button>
+    <button type="button" data-view="history">履歴</button>
+  </nav>
+  <button type="button" id="new-hand" class="new-hand">新しいハンド</button>
 </header>
 
-<main class="wrap">
-  <!-- ① 卓の設定（ふだんは1行にたたんでおき、押すと開く） -->
-  <details class="settings" id="settings-box">
-    <summary>
-      <span class="settings-title">卓の設定</span>
-      <span class="settings-sum" id="settings-sum"></span>
-      <span class="settings-open">変更 ▼</span>
-    </summary>
-    <div class="panel">
-      <div class="row">
-        <span class="label">人数</span>
-        <div class="seg">
-          <button type="button" data-seats="2">2人</button>
-          <button type="button" data-seats="6">6人</button>
-          <button type="button" data-seats="7">7人</button>
-          <button type="button" data-seats="8">8人</button>
-          <button type="button" data-seats="9">9人</button>
-        </div>
-      </div>
-      <div class="row">
-        <span class="label">ブラインド</span>
-        <input type="number" inputmode="numeric" id="sb" value="3000" aria-label="SB">
-        <span>/</span>
-        <input type="number" inputmode="numeric" id="bb" value="6000" aria-label="BB">
-      </div>
-      <div class="row">
-        <span class="label">アンティ</span>
-        <div class="seg">
-          <button type="button" data-ante="none">なし</button>
-          <button type="button" data-ante="bb">BB</button>
-          <button type="button" data-ante="all">各自</button>
-        </div>
-      </div>
-      <div class="row" id="ante-row">
-        <span class="label">アンティ額</span>
-        <input type="number" inputmode="numeric" id="ante-amt" value="6000" aria-label="アンティ額">
-        <span class="hint" id="ante-unit"></span>
-      </div>
-      <div class="row">
-        <span class="label">有効スタック</span>
-        <input type="number" inputmode="decimal" id="es" value="35" aria-label="有効スタック（BB）">
-        <span>BB</span>
-      </div>
-      <p class="hint">HU は人数の「2人」を選んでください。有効スタックは、HEROの手札を選ぶ画面でも変えられます。</p>
-    </div>
-  </details>
+<!-- ============================================
+     入力の画面（できるだけスクロールせずに1画面に収める）
+     ============================================ -->
+<main class="view view-input" id="view-input">
+  <!-- ① シチュエーション（押すと、設定のポップアップが開く） -->
+  <button type="button" class="situ" id="situ-open">
+    <span class="situ-sum" id="summary"></span>
+    <span class="situ-edit">変更 ▸</span>
+  </button>
 
-  <!-- ② 自分（HERO）のポジションと手札 -->
-  <section>
-    <h2>HERO</h2>
-    <div class="panel">
-      <p class="hint warn" id="hero-warn">ポジションを選んでください。</p>
-      <div class="pos" id="hero-pos"></div>
-      <div class="row">
-        <span class="label">手札</span>
-        <div class="cards" id="hero-cards"></div>
-      </div>
-      <p class="hint">カードの枠を押すと、カードの表が開きます。</p>
-    </div>
-  </section>
+  <!-- ② HEROのポジション・手札と、ポット -->
+  <div class="hand-row">
+    <span class="row-label">HERO</span>
+    <button type="button" class="hero-pos-btn" id="hero-pos-btn"></button>
+    <div class="cards" id="hero-cards"></div>
+    <div class="pot"><small id="street">PREFLOP</small><span id="pot">0</span></div>
+  </div>
 
-  <!-- ③ ボード（フロップ3枚・ターン・リバー） -->
-  <section>
-    <h2>ボード</h2>
-    <div class="panel">
-      <div class="cards" id="board"></div>
-      <div class="board-foot">
-        <p class="hint" id="board-hint"></p>
-        <button type="button" data-reset="board" id="board-reset">ボードを全部消す</button>
+  <!-- ③ ボード（枠を押すとカードの表。5枚続けて入れられる） -->
+  <div class="board-row">
+    <div class="cards" id="board"></div>
+    <button type="button" data-reset="board" id="board-reset" class="board-reset">全部<br>消す</button>
+  </div>
+
+  <!-- ④ アクション履歴（短く表示。押すと詳しい履歴のポップアップ） -->
+  <div class="log-mini" id="log-open" role="button" tabindex="0" aria-label="アクション履歴を詳しく見る">
+    <div class="log-mini-head">アクション履歴<span>詳しく ▸</span></div>
+    <div class="log-mini-body" id="log-mini"></div>
+  </div>
+
+  <!-- ⑤ アクション入力 -->
+  <div class="act-area" id="pad">
+    <div class="act-top">
+      <div class="streets" id="streets"></div>
+      <button type="button" id="undo">1つ戻す</button>
+    </div>
+    <div class="turn" id="turn"></div>
+    <div class="pad-body" id="pad-body">
+      <div class="who-row" id="who"></div>
+      <div class="acts">
+        <button type="button" data-act="f">フォールド</button>
+        <button type="button" data-act="x">チェック</button>
+        <button type="button" data-act="c" id="a-c">コール</button>
+        <button type="button" data-act="b" class="aggr">ベット</button>
+        <button type="button" data-act="r" class="aggr">レイズ</button>
+      </div>
+      <div class="sizes" id="sizes"></div>
+      <div class="amount-row">
+        <input type="number" inputmode="numeric" id="amount" aria-label="ベット・レイズの額">
+        <span class="bb" id="amount-bb"></span>
+        <button type="button" id="ok" class="primary">決定</button>
       </div>
     </div>
-  </section>
+    <!-- ハンドが終わったときだけ出る：ショーダウン（相手の手札）と「次のハンドへ」 -->
+    <div class="showdown" id="showdown" hidden></div>
+    <button type="button" id="next-hand" class="primary next-hand" hidden>次のハンドへ（履歴に保存）</button>
+    <div class="msg" id="msg"></div>
+  </div>
+</main>
 
-  <!-- ④ ショーダウン（相手の手札。ショーダウンになったときだけ出る） -->
-  <section id="showdown-sec" hidden>
-    <h2>ショーダウン</h2>
-    <div class="panel" id="showdown"></div>
-  </section>
-
-  <!-- ⑤ アクション履歴 -->
-  <section>
-    <h2>アクション履歴</h2>
-    <div class="panel log" id="log"></div>
-  </section>
-
-  <!-- ⑥ 記録テキスト（手書きと同じ書式で自動作成） -->
+<!-- ============================================
+     テキストの画面（記録テキスト・GTO Wizard用）
+     ============================================ -->
+<main class="view" id="view-text" hidden>
+  <!-- 記録テキスト（手書きと同じ書式で自動作成） -->
   <section>
     <h2>記録テキスト</h2>
     <div class="panel">
@@ -449,7 +449,7 @@
     </div>
   </section>
 
-  <!-- ⑦ GTO Wizard用テキスト（PokerStarsのトーナメント形式） -->
+  <!-- GTO Wizard用テキスト（PokerStarsのトーナメント形式） -->
   <section>
     <h2>GTO WIZARD用</h2>
     <div class="panel">
@@ -464,8 +464,12 @@
       </details>
     </div>
   </section>
+</main>
 
-  <!-- ⑧ ハンド履歴（このスマホのブラウザ内に保存） -->
+<!-- ============================================
+     履歴の画面（このスマホのブラウザ内に保存）
+     ============================================ -->
+<main class="view" id="view-history" hidden>
   <section>
     <h2>ハンド履歴</h2>
     <div class="panel">
@@ -493,53 +497,26 @@
   </section>
 </main>
 
-<!-- 画面の下に固定：アクション入力 -->
-<div class="pad" id="pad">
-  <!-- つまみ：押したまま上下に動かすと高さを変えられる（ダブルタップで元に戻る） -->
-  <div class="grip" id="pad-grip" title="押したまま上下に動かすと高さを変えられます（ダブルタップで元に戻る）"><span></span></div>
-  <div class="pad-in">
-    <div class="pad-top">
-      <div class="turn" id="turn"></div>
-      <div class="pad-btns">
-        <button type="button" id="undo">1つ戻す</button>
-        <button type="button" id="pad-toggle">たたむ ▼</button>
-      </div>
+<!-- アクション履歴（詳しく）のポップアップ -->
+<div class="modal" id="log-pop" hidden>
+  <div class="modal-back" data-close="log"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="アクション履歴">
+    <div class="modal-top">
+      <div class="turn"><b>アクション履歴</b></div>
+      <button type="button" data-close="log">閉じる</button>
     </div>
-    <!-- ここから下は、高さを低くしたときにスクロールする部分 -->
-    <div class="pad-scroll" id="pad-scroll">
-    <!-- 入力し忘れがあるときだけ出るボタン -->
-    <div class="shortcuts" id="shortcuts"></div>
-    <!-- ハンドが終わったときだけ出るボタン -->
-    <button type="button" id="next-hand" class="primary next-hand" hidden>次のハンドへ（履歴に保存）</button>
-    <div class="pad-body" id="pad-body">
-      <div class="who-row" id="who"></div>
-      <div class="acts">
-        <button type="button" data-act="f">フォールド</button>
-        <button type="button" data-act="x">チェック</button>
-        <button type="button" data-act="c" id="a-c">コール</button>
-        <button type="button" data-act="b" class="aggr">ベット</button>
-        <button type="button" data-act="r" class="aggr">レイズ</button>
-      </div>
-      <div class="sizes" id="sizes"></div>
-      <div class="amount-row">
-        <input type="number" inputmode="numeric" id="amount" aria-label="ベット・レイズの額">
-        <span class="bb" id="amount-bb"></span>
-        <button type="button" id="ok" class="primary">決定</button>
-      </div>
-    </div>
-    <div class="msg" id="msg"></div>
-    </div>
+    <div class="log" id="log"></div>
   </div>
 </div>
 
 <!-- カード選択のポップアップ（カードの枠を押したときだけ出る） -->
 <div class="modal" id="sheet" hidden>
   <!-- 周りの暗い部分：押すと閉じる -->
-  <div class="modal-back" id="sheet-back"></div>
+  <div class="modal-back" data-close="sheet"></div>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <div class="modal-top">
       <div class="turn" id="sheet-title"></div>
-      <button type="button" id="sheet-close">閉じる</button>
+      <button type="button" id="sheet-close" data-close="sheet">閉じる</button>
     </div>
     <!-- HEROの手札を選ぶときだけ、ポジションも選べるようにする -->
     <div class="sheet-pos-wrap" id="sheet-pos-wrap" hidden>
@@ -561,6 +538,53 @@
     </div>
     <!-- HEROの手札が2枚そろったときだけ出る（押し間違えたら、閉じずにそのまま選び直せる） -->
     <button type="button" id="to-board" class="primary to-board" hidden></button>
+  </div>
+</div>
+
+<!-- シチュエーション（卓の設定）のポップアップ -->
+<div class="modal" id="settings-pop" hidden>
+  <div class="modal-back" data-close="settings"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="シチュエーション">
+    <div class="modal-top">
+      <div class="turn"><b>シチュエーション</b></div>
+      <button type="button" data-close="settings">閉じる</button>
+    </div>
+    <div class="row">
+      <span class="label">人数</span>
+      <div class="seg">
+        <button type="button" data-seats="2">2人</button>
+        <button type="button" data-seats="6">6人</button>
+        <button type="button" data-seats="7">7人</button>
+        <button type="button" data-seats="8">8人</button>
+        <button type="button" data-seats="9">9人</button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">ブラインド</span>
+      <input type="number" inputmode="numeric" id="sb" value="3000" aria-label="SB">
+      <span>/</span>
+      <input type="number" inputmode="numeric" id="bb" value="6000" aria-label="BB">
+    </div>
+    <div class="row">
+      <span class="label">アンティ</span>
+      <div class="seg">
+        <button type="button" data-ante="none">なし</button>
+        <button type="button" data-ante="bb">BB</button>
+        <button type="button" data-ante="all">各自</button>
+      </div>
+    </div>
+    <div class="row" id="ante-row">
+      <span class="label">アンティ額</span>
+      <input type="number" inputmode="numeric" id="ante-amt" value="6000" aria-label="アンティ額">
+      <span class="hint" id="ante-unit"></span>
+    </div>
+    <div class="row">
+      <span class="label">有効スタック</span>
+      <input type="number" inputmode="decimal" id="es" value="35" aria-label="有効スタック（BB）">
+      <span>BB</span>
+    </div>
+    <p class="hint">HU は人数の「2人」を選んでください。有効スタックは、HEROの手札を選ぶ画面でも変えられます。</p>
+    <button type="button" class="primary to-board" data-close="settings">OK</button>
   </div>
 </div>
 
@@ -610,7 +634,9 @@ const state = {
   pending: null,      // ベット・レイズを押して額の入力待ちなら 'b' か 'r'
   amount: 0,          // 入力中の額
   message: '',        // 注意メッセージ
-  padOpen: true,      // 画面下のアクション入力を開いているか
+  padOpen: true,      // （前の版の名残。今は使っていない）
+  view: 'input',      // 表示中の画面：'input'（入力）/'text'（テキスト）/'history'（履歴）
+  popup: null,        // 開いているポップアップ：'settings'（シチュエーション）/'log'（アクション履歴）。カード選択は pick で決まる
 };
 
 // 短く書くための道具
@@ -837,6 +863,19 @@ function boardText(street) {
   return BOARD_OF_STREET[street].map(i => state.board[i] || '??').join(' ');  // 例：Ad Kc 9d
 }
 
+// そのストリートのアクションを、人ごとに1つにまとめる（例：[{pos:'BB', text:'x/r 40000'}, …]）
+// 記録テキストと、入力の画面の短いアクション履歴の両方で使う
+function streetLines(sim, s) {
+  const order = [], tokens = {};
+  for (const a of sim.log) {
+    if (a.street !== s) continue;
+    if (a.auto && a.type === 'f' && s === 0) continue;  // プリフロップの自動フォールドは書かない
+    if (!tokens[a.pos]) { tokens[a.pos] = []; order.push(a.pos); }
+    tokens[a.pos].push(tokenOf(a));
+  }
+  return order.map(pos => ({ pos, text: tokens[pos].join('/') }));
+}
+
 function buildText(sim) {
   const lines = [];
   lines.push(`${state.sb}/${state.bb}(ES${state.es}BB)`);
@@ -849,14 +888,7 @@ function buildText(sim) {
       lines.push('', `${STREET_TEXT[s]}(${Math.round(sim.potAt[s])})`, boardText(s));
     }
     // 同じ人のアクションは1行にまとめる（例：BB x/r 40000）
-    const order = [], tokens = {};
-    for (const a of sim.log) {
-      if (a.street !== s) continue;
-      if (a.auto && a.type === 'f' && s === 0) continue;  // プリフロップの自動フォールドは書かない
-      if (!tokens[a.pos]) { tokens[a.pos] = []; order.push(a.pos); }
-      tokens[a.pos].push(tokenOf(a));
-    }
-    order.forEach(pos => lines.push(`${pos} ${tokens[pos].join('/')}`));
+    streetLines(sim, s).forEach(l => lines.push(`${l.pos} ${l.text}`));
   }
 
   // ショーダウンで見えた相手の手札（例：BB Q6s(dd)、マックなら BB muck）
@@ -1137,10 +1169,15 @@ function renderHistory() {
 function render() {
   const sim = simulate();
 
-  // 上部
+  // 画面の切り替え（入力・テキスト・履歴）とポップアップ
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === state.view));
+  ['input', 'text', 'history'].forEach(v => { $(`view-${v}`).hidden = v !== state.view; });
+  $('settings-pop').hidden = state.popup !== 'settings';
+  $('log-pop').hidden = state.popup !== 'log';
+
+  // ① シチュエーション（1行）とポット
   const anteLabel = { none: 'アンティなし', bb: 'BBアンティ', all: '各自アンティ' }[state.anteType];
   $('summary').textContent = `${state.sb}/${state.bb} ・ ES${state.es}BB ・ ${state.seats}人 ・ ${anteLabel}`;
-  $('settings-sum').textContent = `${state.sb}/${state.bb} ・ ${state.seats}人 ・ ${anteLabel}`;
   $('pot').textContent = fmt(sim.pot);
   $('street').textContent =
     sim.alive.length <= 1 ? '終了' :
@@ -1155,6 +1192,7 @@ function render() {
   renderHero();
   renderBoard(sim);
   renderShowdown(sim);
+  renderLogMini(sim);
   renderLog(sim);
   renderPad(sim);
   renderSheet();
@@ -1182,22 +1220,47 @@ function cardButton(slot, emptyLabel, disabled) {
     : `<button type="button" class="card empty${target}" data-slot="${slot}"${off}>${emptyLabel}</button>`;
 }
 
+// ② HEROのポジションと手札（押すと、手札を選ぶポップアップ）
 function renderHero() {
-  $('hero-pos').innerHTML = POSITIONS[state.seats]
-    .map(p => `<button type="button" data-pos="${p}" class="${p === state.heroPos ? 'on' : ''}">${p}</button>`)
-    .join('');
-  $('hero-cards').innerHTML = cardButton('h0', '1枚目') + cardButton('h1', '2枚目');
-  $('hero-warn').hidden = state.heroPos !== null;
+  const btn = $('hero-pos-btn');
+  btn.textContent = state.heroPos || 'ポジション？';
+  btn.classList.toggle('warn', !state.heroPos);  // 未選択なら赤く
+  $('hero-cards').innerHTML = cardButton('h0', '手札') + cardButton('h1', '手札');
+  // 手札が未入力なら、枠を赤くして気づけるようにする
+  document.querySelectorAll('#hero-cards .card.empty').forEach(b => b.classList.add('need'));
 }
 
-function renderBoard(sim) {
+// ③ ボード
+function renderBoard() {
   const names = ['flop', 'flop', 'flop', 'turn', 'river'];
   $('board').innerHTML = [0, 1, 2, 3, 4].map(i => {
     const gap = i === 3 || i === 4 ? '<div class="board-gap"></div>' : '';
     return gap + cardButton('b' + i, names[i]);
   }).join('');
-  $('board-hint').textContent = 'カードの枠を押すと、5枚続けて選べます（プリフロップ中でも入れられます）。';
   $('board-reset').disabled = !state.board.some(c => c);
+}
+
+// ④ 入力の画面の、短いアクション履歴（記録テキストと同じまとめ方。例：FLOP  BB x/r 40000  HJ b 13000/c）
+function renderLogMini(sim) {
+  const el = $('log-mini');
+  if (!sim.log.length) {
+    el.innerHTML = '<p class="empty-log">まだありません。下の「誰が」→「何を」の順に押してください。</p>';
+    return;
+  }
+  const short = ['PF', 'FLOP', 'TURN', 'RIVER'];
+  let html = '';
+  for (let s = 0; s <= Math.min(sim.street, 3); s++) {
+    if (s > 0 && sim.potAt[s] === undefined) break;
+    const parts = streetLines(sim, s)
+      .map(l => `<span><span class="who${l.pos === state.heroPos ? ' hero' : ''}">${l.pos}</span> ${escapeHTML(l.text)}</span>`)
+      .join('');
+    const pot = s > 0 ? `<small>${fmt(sim.potAt[s])}</small>` : '';
+    html += `<div class="lm"><b>${short[s]}${pot}</b><span class="parts">${parts}</span></div>`;
+  }
+  el.innerHTML = html;
+  // 一番新しいアクションが見えるように、下までスクロールする
+  const box = $('log-open');
+  box.scrollTop = box.scrollHeight;
 }
 
 // まだ入れていないボードの最初の場所（ストリートに関係なく5枚の中から）
@@ -1206,7 +1269,7 @@ const boardName = slot => (+slot[1] < 3 ? 'フロップ' : slot === 'b3' ? 'タ�
 
 function renderShowdown(sim) {
   const show = sim.street === 4 && sim.alive.length > 1;
-  $('showdown-sec').hidden = !show;
+  $('showdown').hidden = !show;
   if (!show) return;
   const warn = state.heroPos ? '' : '<p class="hint warn">HEROのポジションが未選択のため、自分も一覧に出ています。上の HERO でポジションを選んでください。</p>';
   $('showdown').innerHTML = warn + sim.alive
@@ -1218,7 +1281,7 @@ function renderShowdown(sim) {
         + cardButton(`s:${p.pos}:0`, '1枚目', muck) + cardButton(`s:${p.pos}:1`, '2枚目', muck)
         + `<button type="button" class="muck${muck ? ' on' : ''}" data-muck="${p.pos}">マック</button></div></div>`;
     })
-    .join('') + '<p class="hint">相手が見せた手札を入れると、記録テキストに追加されます（入れなくても大丈夫です）。見せずに捨てたときは「マック」を押してください。</p>';
+    .join('') + '<p class="hint">相手の手札は入れなくても大丈夫です。見せずに捨てたときは「マック」。</p>';
 }
 
 // ボードの小さな表示（例：A♦ K♣ 9♦）
@@ -1265,28 +1328,17 @@ function renderLog(sim) {
   $('log').innerHTML = html;
 }
 
+// ⑤ アクション入力
 function renderPad(sim) {
-  document.body.classList.toggle('pad-min', sim.done || !state.padOpen);
-  requestAnimationFrame(fitBodyPadding);  // 表示が変わったら、下の余白を合わせる
-
   $('undo').disabled = state.actions.length === 0;
   $('msg').textContent = state.message;
-  $('pad-body').hidden = sim.done || !state.padOpen;
-  $('pad-toggle').hidden = sim.done;
-  $('pad-toggle').textContent = state.padOpen ? 'たたむ ▼' : 'ひらく ▲';
+  $('pad-body').hidden = sim.done;
 
-  // 入力し忘れを知らせるボタン
-  let sc = '';
-  if (state.heroPos === null || state.hero.some(c => !c)) {
-    sc += '<button type="button" class="need-hero" data-open="hero">HEROのポジション・手札を選ぶ（クリック）</button>';
-  }
-  const boardSlot = firstEmptyBoard(sim);
-  if (boardSlot) {
-    const i = +boardSlot[1];
-    const name = i < 3 ? 'フロップ' : i === 3 ? 'ターン' : 'リバー';
-    sc += `<button type="button" class="need-board" data-open="board">ボードを入力（${name}）</button>`;
-  }
-  $('shortcuts').innerHTML = sc;
+  // 今のストリート（終わったストリートは濃く、今のストリートは緑）
+  const now = Math.min(sim.street, 3);
+  $('streets').innerHTML = ['PF', 'FLOP', 'TURN', 'RIVER']
+    .map((name, s) => `<span class="${s === now && !sim.done ? 'now' : s <= now ? 'done' : ''}">${name}</span>`)
+    .join('');
 
   // ハンドが終わったら「次のハンドへ」を大きく出す
   $('next-hand').hidden = !sim.done;
@@ -1307,7 +1359,7 @@ function renderPad(sim) {
   const p = sim.players.find(q => q.pos === actor);
   const maxPut = sim.stack - p.total;
   const toCall = Math.min(sim.currentBet, maxPut) - p.put;
-  $('turn').innerHTML = `${STREET_LABEL[sim.street]}：<b>${actor}</b>${actor === state.heroPos ? '（HERO）' : ''}の番です`;
+  $('turn').innerHTML = `<b>${actor}</b>${actor === state.heroPos ? '（HERO）' : ''}の番です`;
 
   // 誰が（打つ可能性のある人を順番に並べる。後ろの人を押すと、間の人はチェックかフォールド扱い）
   $('who').innerHTML = '<span class="who-label">誰が</span>' + sim.waiting
@@ -1502,7 +1554,7 @@ function newHand() {
     renderHistory();
   }
   clearHand();
-  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickAuto: false, padOpen: true });
+  Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickAuto: false, view: 'input', popup: null });
   $('copy-msg').textContent = '';
   $('copy-gtow-msg').textContent = '';
 }
@@ -1543,6 +1595,17 @@ function historyButton(d) {
 
 // ボタンが押されたら、どのボタンかを見分けて処理する
 document.addEventListener('click', e => {
+  // ポップアップを閉じる（「閉じる」ボタンと、周りの暗い部分）
+  const closer = e.target.closest('[data-close]');
+  if (closer) {
+    if (closer.dataset.close === 'sheet') closePicker();
+    else state.popup = null;
+    render();
+    return;
+  }
+  // 短いアクション履歴を押したら、詳しい履歴のポップアップ
+  if (e.target.closest('#log-open')) { state.popup = 'log'; render(); return; }
+
   const b = e.target.closest('button');
   if (!b || b.disabled) return;
   const d = b.dataset;
@@ -1554,7 +1617,14 @@ document.addEventListener('click', e => {
   if (b.id === 'backup-copy') { copyString(backupText(), 'backup-pre', 'backup-msg'); return; }
   if (b.id === 'restore-btn') { restoreBackup(); return; }
 
-  if (d.seats) changeSeats(+d.seats);
+  if (d.view) state.view = d.view;                         // 画面の切り替え
+  else if (b.id === 'situ-open') state.popup = 'settings';  // シチュエーションの変更
+  else if (b.id === 'hero-pos-btn') {
+    // HEROのポジション：手札を選ぶポップアップ（ポジションもここで選ぶ）を開く
+    state.pick = state.hero[0] && !state.hero[1] ? 'h1' : 'h0';
+    state.pickAuto = false;
+  }
+  else if (d.seats) changeSeats(+d.seats);
   else if (d.ante) {
     state.anteType = d.ante;
     if (d.ante === 'bb') { state.ante = state.bb; $('ante-amt').value = state.bb; }
@@ -1566,20 +1636,13 @@ document.addEventListener('click', e => {
     state.pickAuto = false;
   }
   else if (d.reset === 'board') {
-    if (!confirm('ボードのカードを全部消しますか？')) return;
+    // 確認なしで消す（ユーザー指定）
     state.board = [null, null, null, null, null];
     if (state.pick && state.pick[0] === 'b') state.pick = 'b0';  // ポップアップで消したときは、フロップ1枚目から入れ直す
   }
   else if (d.slot) {
     // 手で開いたときは、ボード5枚を続けて入れられるようにする
     state.pick = d.slot;
-    state.pickAuto = false;
-  }
-  else if (d.open) {
-    // 入力し忘れボタン：HEROの手札（空いている方）か、ボードの空いている場所を開く
-    state.pick = d.open === 'hero'
-      ? (state.hero[0] ? (state.hero[1] ? 'h0' : 'h1') : 'h0')
-      : firstEmptyBoard(simulate());
     state.pickAuto = false;
   }
   else if (d.muck) {
@@ -1589,8 +1652,6 @@ document.addEventListener('click', e => {
   }
   else if (d.card) pickCard(d.card);
   else if (b.id === 'card-clear') setCard(state.pick, null);
-  else if (b.id === 'sheet-close') closePicker();
-  else if (b.id === 'pad-toggle') state.padOpen = !state.padOpen;
   else if (d.actor) { state.actor = d.actor; state.pending = null; state.message = ''; }
   else if (d.act) doAction(d.act);
   else if (d.to) {
@@ -1646,108 +1707,6 @@ $('amount').addEventListener('input', e => {
 });
 
 // ============================================
-// 8. 画面下の欄の高さを、つまみで変えられるようにする
-// ============================================
-const panelHeights = loadJSON('heights', {});  // 決めた高さ（{ pad: 180 } のように保存）
-
-// 画面の下の余白を、アクション入力の欄の高さに合わせる（中身が欄に隠れないように）
-function fitBodyPadding() {
-  document.body.style.paddingBottom = `${$('pad').offsetHeight + 16}px`;
-}
-
-function makeResizable(key, gripId, scrollId) {
-  const grip = $(gripId), area = $(scrollId);
-  const header = grip.parentElement.querySelector('.pad-top');  // 「〇〇の番です」の行もつかめるようにする
-  if (panelHeights[key] !== undefined) area.style.maxHeight = `${panelHeights[key]}px`;
-  let startY = 0, startH = 0, dragging = null, moved = false, lastTap = 0, frame = 0, nextH = 0;
-
-  // つかみ始め（y＝指やマウスの縦の位置）。つかめたら true
-  const start = (handle, y, target) => {
-    if (target.closest('button, input')) return false;  // ボタンを押したときは動かさない
-    dragging = handle;
-    moved = false;
-    startY = y;
-    startH = area.getBoundingClientRect().height;
-    grip.classList.add('dragging');
-    return true;
-  };
-  const move = y => {
-    if (!dragging) return;
-    if (!moved && Math.abs(y - startY) < 3) return;  // 少し触れただけでは動かさない
-    moved = true;
-    // 上に動かすと高く、下に動かすと低くなる。
-    // 上限は「中身が全部見える高さ」（画面の7割まで）。それ以上は引き上げない
-    const limit = Math.min(area.scrollHeight, window.innerHeight * 0.7);
-    nextH = Math.max(0, Math.min(startH + (startY - y), limit));
-    // 画面の更新に合わせて描き直す（動きをなめらかにする）
-    if (!frame) frame = requestAnimationFrame(() => {
-      frame = 0;
-      area.style.maxHeight = `${nextH}px`;
-      fitBodyPadding();
-    });
-  };
-  const end = () => {
-    if (!dragging) return;
-    const handle = dragging;
-    dragging = null;
-    grip.classList.remove('dragging');
-    if (moved) {
-      // 動かしたときは、その高さを覚える
-      area.style.maxHeight = `${nextH}px`;
-      fitBodyPadding();
-      panelHeights[key] = nextH;
-      saveJSON('heights', panelHeights);
-      return;
-    }
-    // つまみを動かさずに2回続けて触れたら（ダブルタップ・ダブルクリック）、元の高さに戻す
-    if (handle !== grip) return;
-    const now = Date.now();
-    if (now - lastTap < 350) {
-      area.style.maxHeight = '';
-      delete panelHeights[key];
-      saveJSON('heights', panelHeights);
-      fitBodyPadding();
-      lastTap = 0;
-    } else {
-      lastTap = now;
-    }
-  };
-  const cancel = () => { dragging = null; grip.classList.remove('dragging'); };
-
-  [grip, header].forEach(handle => {
-    // 指の操作（スマホ）：iPhoneのブラウザで確実に動くよう、タッチイベントで扱う。
-    // 動かしている間は画面のスクロールを止める（passive: false で止められるようにする）
-    handle.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1) return;
-      if (start(handle, e.touches[0].clientY, e.target)) e.preventDefault();
-    }, { passive: false });
-    handle.addEventListener('touchmove', e => {
-      if (!dragging) return;
-      e.preventDefault();
-      move(e.touches[0].clientY);
-    }, { passive: false });
-    handle.addEventListener('touchend', end);
-    handle.addEventListener('touchcancel', cancel);
-
-    // マウスの操作（PC）
-    handle.addEventListener('pointerdown', e => {
-      if (e.pointerType && e.pointerType !== 'mouse') return;  // 指の操作はタッチイベント側で扱う
-      if (!start(handle, e.clientY, e.target)) return;
-      try { handle.setPointerCapture(e.pointerId); } catch (err) { /* 使えない環境では何もしない */ }
-      e.preventDefault();
-    });
-    handle.addEventListener('pointermove', e => { if (!e.pointerType || e.pointerType === 'mouse') move(e.clientY); });
-    handle.addEventListener('pointerup', e => { if (!e.pointerType || e.pointerType === 'mouse') end(); });
-    handle.addEventListener('pointercancel', e => { if (!e.pointerType || e.pointerType === 'mouse') cancel(); });
-  });
-}
-makeResizable('pad', 'pad-grip', 'pad-scroll');
-window.addEventListener('resize', fitBodyPadding);
-
-// カード選択のポップアップの外側（暗い部分）を押したら閉じる
-$('sheet-back').addEventListener('click', () => { closePicker(); render(); });
-
-// ============================================
 // 9. バックアップ・復元（ブラウザとホーム画面のアプリの間で履歴を移すときにも使う）
 // ============================================
 function backupText() {
@@ -1779,8 +1738,8 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platfor
 const isStandalone = navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 $('home-hint').hidden = !(isIOS && !isStandalone);
 
-// 卓の設定は、はじめて使うときだけ開いておく（2回目からはたたむ）
-$('settings-box').open = !loadJSON('current', null);
+// はじめて使うときだけ、シチュエーション（卓の設定）のポップアップを開いておく
+if (!loadJSON('current', null)) state.popup = 'settings';
 
 // 最初の表示（前回の続きを読み込んでから描く）
 restoreCurrent();
