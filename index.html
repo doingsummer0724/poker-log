@@ -141,7 +141,7 @@
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
   }
   .tabs { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .tabs button { border: 0; border-radius: 0; border-right: 1px solid var(--line); min-height: 34px; padding: 0 12px; font-size: 13.5px; }
+  .tabs button { border: 0; border-radius: 0; border-right: 1px solid var(--line); min-height: 34px; padding: 0 9px; font-size: 13px; white-space: nowrap; }
   .tabs button:last-child { border-right: 0; }
 
   .note {
@@ -277,6 +277,11 @@
   .sess-count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
   .sess-in > .row button { min-height: 36px; font-size: 13px; }
   .sess .danger { color: var(--warn); }
+  /* 今のセッション（一覧の「今」の印と、上の表示） */
+  .sess-cur { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 99px; background: var(--felt); color: var(--surface); white-space: nowrap; }
+  .cur-sess { font-size: 14px; }
+  .cur-sess b { color: var(--felt); }
+  .ver { text-align: right; font-size: 11px; }
   /* 長いセッション名などで、履歴の枠が画面の幅より広がらないように */
   .panel, details, .hist, .sess-in { grid-template-columns: minmax(0, 1fr); }
   .sess > summary { min-width: 0; }
@@ -456,7 +461,7 @@
   <nav class="tabs">
     <button type="button" data-view="input">入力</button>
     <button type="button" data-view="text">テキスト</button>
-    <button type="button" data-view="history">履歴</button>
+    <button type="button" data-view="history">セッション・履歴</button>
   </nav>
   <button type="button" id="new-hand" class="new-hand">新しいハンド</button>
 </header>
@@ -508,11 +513,11 @@
     <div class="pad-body" id="pad-body">
       <div class="who-row" id="who"></div>
       <div class="acts">
-        <button type="button" data-act="f">フォールド</button>
-        <button type="button" data-act="x">チェック</button>
-        <button type="button" data-act="c" id="a-c">コール</button>
-        <button type="button" data-act="b" class="aggr">ベット</button>
-        <button type="button" data-act="r" class="aggr">レイズ</button>
+        <button type="button" data-act="f">Fold</button>
+        <button type="button" data-act="x">Check</button>
+        <button type="button" data-act="c" id="a-c">Call</button>
+        <button type="button" data-act="b" class="aggr">Bet</button>
+        <button type="button" data-act="r" class="aggr">Raise</button>
       </div>
       <div class="sizes" id="sizes"></div>
       <div class="amount-row">
@@ -572,6 +577,30 @@
      履歴の画面（このスマホのブラウザ内に保存）
      ============================================ -->
 <main class="view" id="view-history" hidden>
+  <!-- セッション：今のセッションと、新しいセッションを作る欄（ハンドがなくても作れる） -->
+  <section>
+    <h2>セッション</h2>
+    <div class="panel">
+      <div class="cur-sess">今のセッション：<b id="cur-sess"></b></div>
+      <p class="hint">新しいハンドは、今のセッションに保存されます。下の一覧の「このセッションを使う」でも切り替えられます。</p>
+      <button type="button" id="hs-new">＋ 新しいセッションを作る</button>
+      <div class="save-new" id="hs-form" hidden>
+        <div class="row">
+          <span class="label">日付</span>
+          <input type="date" id="hs-date" aria-label="新しいセッションの日付">
+        </div>
+        <div class="row">
+          <span class="label">名前</span>
+          <input type="text" id="hs-name" placeholder="店名・大会名など（なくてもOK）" aria-label="新しいセッションの名前">
+        </div>
+        <div class="same-list" id="hs-same"></div>
+        <div class="row">
+          <button type="button" id="hs-ok" class="primary">作って、今のセッションにする</button>
+          <button type="button" id="hs-cancel">やめる</button>
+        </div>
+      </div>
+    </div>
+  </section>
   <section>
     <h2>ハンド履歴</h2>
     <div class="panel">
@@ -600,6 +629,8 @@
       </details>
     </div>
   </section>
+  <!-- 版の名前（スマホが古い版を表示していないか確かめる用） -->
+  <p class="hint ver">版：step6_6（2026-09-26）</p>
 </main>
 
 <!-- 「選ぶ（共有・移す）」の間だけ、画面の下に出る帯 -->
@@ -809,7 +840,7 @@ const POSITIONS = {
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 const SUITS = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const SUIT_MARK = { ...SUITS, x: '?' };  // x＝色（マーク）を忘れたとき
-const ACT_NAME = { f: 'フォールド', x: 'チェック', c: 'コール', b: 'ベット', r: 'レイズ' };
+const ACT_NAME = { f: 'Fold', x: 'Check', c: 'Call', b: 'Bet', r: 'Raise' };  // 画面の表示は英語
 
 // ストリート（0=プリフロップ、1=フロップ、2=ターン、3=リバー、4=ショーダウン）
 const STREET_LABEL = ['PREFLOP', 'FLOP', 'TURN', 'RIVER'];
@@ -849,6 +880,7 @@ const state = {
   selecting: false,   // 履歴で「選んで移す」をしているか
   sessForm: false,    // シチュエーションで「新しく始める」の入力欄を開いているか
   heroWaitPos: false, // HEROの手札がそろったが、ポジションがまだ（選んだら自動でフロップ選択へ）
+  hsForm: false,      // 「セッション・履歴」で「新しいセッションを作る」の入力欄を開いているか
 };
 
 // 短く書くための道具
@@ -1078,7 +1110,7 @@ function presets(sim) {
   // ミニマムより小さい額にはしない。有効スタックが入っていればオールインも出す
   // 額はすべて100単位などに丸める（2.2bb・×3 なども）
   list = list.map(([label, to]) => [label, Math.min(Math.max(roundChip(to), sim.minTo), allin)]);
-  if (allin !== Infinity) list.push(['オールイン', allin]);
+  if (allin !== Infinity) list.push(['All-in', allin]);
   return list;
 }
 
@@ -1213,7 +1245,7 @@ function buildGTOW(sim) {
   if (!boardIdx.every(i => known(state.board[i]))) missing.push('ボード（色も）');
   if (!sim.done) missing.push('ハンドの最後までのアクション');
   if (!esKnown()) missing.push('有効スタック');
-  if (sim.unknown) missing.push('ベット・レイズの額（入力の画面の「詳しく」から入れられます）');
+  if (sim.unknown) missing.push('Bet・Raise の額（入力の画面の「詳しく」から入れられます）');
   if (missing.length) return { ok: false, text: `作るには、次を入力してください：${missing.join('、')}` };
 
   const list = sim.list, n = list.length, stack = sim.stack;
@@ -1367,8 +1399,12 @@ const NONE = 'none';
 if (!sessionById(NONE)) sessions.push({ id: NONE, day: null, date: '', name: '' });
 
 // ハンドが1つもないセッションを消す（名無しフォルダと今のセッションは残す）
+// 残しておくセッションか（名前のあるセッションは、ハンドが0件でも残す。
+// 名前なしで0件のもの＝日付が変わって自動で作られたものなどは片付ける。名無しフォルダと今のセッションは残す）
+const keepSession = s => s.id === NONE || s.id === activeSessionId || !!s.name || handsOf(s.id).length > 0;
+
 function pruneSessions() {
-  sessions = sessions.filter(s => s.id === NONE || s.id === activeSessionId || handsOf(s.id).length);
+  sessions = sessions.filter(keepSession);
 }
 
 // 同じ日付・同じ名前のセッションを探す（名前が空のときは探さない：同じ日に名前なしで分けたいとき用）
@@ -1387,7 +1423,7 @@ function sameNameSessions(name, exceptId) {
   const key = normName(name);
   if (!key) return [];
   return sessions
-    .filter(s => s.id !== NONE && s.id !== exceptId && normName(s.name) === key && (handsOf(s.id).length || s.id === activeSessionId))
+    .filter(s => s.id !== NONE && s.id !== exceptId && normName(s.name) === key)
     .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
 }
 
@@ -1417,10 +1453,11 @@ function renderSame(boxId, name, field, exceptId) {
 
 // 同じ名前の候補の「ここに入る」「ここにまとめる」
 function joinSession(field, id) {
-  if (field === 'sf') {
-    // 新しく始める → そのセッションを今のセッションにする（日付が違っても、今日のうちは続けて使う）
+  if (field === 'sf' || field === 'hs') {
+    // 新しく始める・新しいセッションを作る → そのセッションを今のセッションにする（日付が違っても、今日のうちは続けて使う）
     activeSessionId = id;
     pinDay = sessionDay();
+    state.hsForm = false;
     state.sessForm = false;
     saveSessions();
   } else if (field === 'save') {
@@ -1466,7 +1503,7 @@ function newSession(date = sessionDay(), name = '') {
     return same;
   }
   const day = sessionDay();
-  sessions = sessions.filter(s => s.id === NONE || handsOf(s.id).length);  // ハンドのない古いセッションは消しておく
+  sessions = sessions.filter(s => s.id === NONE || !!s.name || handsOf(s.id).length);  // 名前なしでハンドもない古いセッションは片付ける
   const s = { id: 's' + Date.now(), day, date, name };
   sessions.unshift(s);
   activeSessionId = s.id;
@@ -1666,9 +1703,12 @@ function deleteSession(id) {
 const escapeHTML = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
 // 履歴に出すセッションの順番（日付の新しいセッションが上。同じ日付なら、新しいハンドがある方が上。名無しは一番下）
+// ハンドが0件でも、名前のあるセッションと今のセッションは出す（名無しフォルダは中身があるときだけ）
 function sessionOrder() {
-  return [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id))
-    .map((id, i) => ({ id, i, date: sessionById(id).date }))
+  const order = [...new Set(history.map(h => h.sessionId))];  // 新しいハンドがあるセッションほど前
+  return sessions
+    .filter(s => (s.id === NONE ? handsOf(NONE).length > 0 : keepSession(s)))
+    .map(s => ({ id: s.id, i: order.includes(s.id) ? order.indexOf(s.id) : -1, date: s.date }))  // ハンドがない＝作ったばかり、として前に
     .sort((a, b) => (a.date === b.date ? a.i - b.i : a.date < b.date ? 1 : -1))
     .map(x => x.id);
 }
@@ -1686,28 +1726,41 @@ function renderHistory() {
   $('sel-bar').hidden = !(state.selecting && state.view === 'history');
   updateSelCount();
 
+  renderCurSession();
+
+  const cur = activeSession().id;
   $('history').innerHTML = sessionOrder().map((id, gi) => {
     const s = sessionById(id);
     const list = numbered(id).reverse();  // 画面では新しい順に出す
+    const has = list.length > 0;
     // 選んでいる間は、全部のセッションを開いて、ボタンは「全部選ぶ」だけにする
     const buttons = state.selecting
-      ? `<button type="button" data-sselall="${id}">このセッションを全部選ぶ</button>`
-      : `<button type="button" class="primary" data-sshare="${id}">まとめて共有</button>
-          <button type="button" data-scopy="${id}">まとめてコピー</button>
+      ? `<button type="button" data-sselall="${id}"${has ? '' : ' disabled'}>このセッションを全部選ぶ</button>`
+      : `${id === cur ? '' : `<button type="button" class="primary" data-suse="${id}">このセッションを使う</button>`}
+          <button type="button"${id === cur ? ' class="primary"' : ''} data-sshare="${id}"${has ? '' : ' disabled'}>まとめて共有</button>
+          <button type="button" data-scopy="${id}"${has ? '' : ' disabled'}>まとめてコピー</button>
           ${id === NONE ? '' : `<button type="button" data-sname="${id}">名前を変える</button>`}
           <button type="button" class="danger" data-sdel="${id}">${id === NONE ? '中身を全部削除' : 'このセッションを削除'}</button>`;
-    return `<details class="sess"${gi === 0 || state.selecting ? ' open' : ''}>
-      <summary><span class="sess-date">${dateLabel(s.date)}</span><span class="sess-name">${escapeHTML(s.name)}</span><span class="sess-count">${list.length}ハンド</span></summary>
+    return `<details class="sess"${gi === 0 || id === cur || state.selecting ? ' open' : ''}>
+      <summary><span class="sess-date">${dateLabel(s.date)}</span><span class="sess-name">${escapeHTML(s.name)}</span>${id === cur ? '<span class="sess-cur">今</span>' : ''}<span class="sess-count">${list.length}ハンド</span></summary>
       <div class="sess-in">
         <div class="row">
           ${buttons}
           <span class="copy-msg" id="sess-msg-${id}"></span>
         </div>
         <pre id="sess-pre-${id}" hidden></pre>
-        <div class="hist">${list.map(({ h, no }) => histItem(h, no)).join('')}</div>
+        ${has ? `<div class="hist">${list.map(({ h, no }) => histItem(h, no)).join('')}</div>` : '<p class="hint">まだハンドがありません。</p>'}
       </div>
     </details>`;
   }).join('');
+}
+
+// 「セッション・履歴」の一番上：今のセッションと、新しいセッションを作る欄
+function renderCurSession() {
+  const s = activeSession();
+  $('cur-sess').textContent = s.id === NONE ? '名無し（日付・名前なし）' : `${dateLabel(s.date)} ${s.name || '（名前なし）'}`;
+  $('hs-form').hidden = !state.hsForm;
+  $('hs-new').hidden = state.hsForm;
 }
 
 // 履歴の1ハンド分
@@ -2055,7 +2108,7 @@ function renderPad(sim) {
     b.classList.toggle('pending', b.dataset.act === state.pending);
   });
   // コールの額（額が未入力のベットに対するコールは「?」）
-  $('a-c').innerHTML = toCall > 0 ? `コール<small>${sim.unknown ? '?' : fmt(toCall)}</small>` : 'コール';
+  $('a-c').innerHTML = toCall > 0 ? `Call<small>${sim.unknown ? '?' : fmt(toCall)}</small>` : 'Call';
 
   // 額の早押しボタン（額が未入力のベットがあるときは出さない）
   const ps = presets(sim);
@@ -2076,8 +2129,8 @@ function renderPad(sim) {
 // 詳しい履歴のポップアップの、額を入れ直す欄
 function renderEdit(sim) {
   $('log-hint').textContent = sim.unknown
-    ? '額が「?」のベット・レイズは「額を入れる」を押すと入れられます。コールの額とポットは自動で計算し直します。'
-    : 'ベット・レイズの額は「直す」で入れ直せます。';
+    ? '額が「?」の Bet・Raise は「額を入れる」を押すと入れられます。Call の額とポットは自動で計算し直します。'
+    : 'Bet・Raise の額は「直す」で入れ直せます。';
   const a = state.editIdx === null ? null : state.actions[state.editIdx];
   $('edit-box').hidden = !a;
   if (!a) return;
@@ -2188,7 +2241,7 @@ function checkAmount(before, pos, to) {
   // ミニマム：ベットは1BB以上、レイズは「今のベット額＋直前のレイズ幅」以上（オールインは少なくてもよい）
   if (to < before.minTo && to !== maxPut) {
     const bb = before.street === 0 ? `（${bbOf(before.minTo)}bb）` : '';
-    return `ミニマム ${fmt(before.minTo)}${bb} 以上の額にしてください（オールインのときは除く）。`;
+    return `ミニマム ${fmt(before.minTo)}${bb} 以上の額にしてください（All-in のときは除く）。`;
   }
   return '';
 }
@@ -2355,7 +2408,7 @@ function renderSave() {
   const move = state.saveMode === 'move';
   const cur = activeSession().id;
   const dated = sessions
-    .filter(s => s.id !== NONE && (s.id === cur || handsOf(s.id).length))
+    .filter(s => s.id !== NONE && (s.id === cur || handsOf(s.id).length || s.name))  // 名前のあるセッションは0件でも候補に出す
     .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
     .slice(0, 8);
   const list = [...dated, sessionById(NONE)];
@@ -2433,7 +2486,9 @@ function historyButton(d) {
   }
   if (!confirm('このハンドを履歴から削除しますか？\n（セッションの #番号 は詰め直されます）')) return;
   history = history.filter(x => String(x.id) !== d.hdel);
+  pruneSessions();  // 名前のあるセッションは、0件になっても残す（名前なしの空セッションだけ片付ける）
   saveJSON('history', history);
+  saveSessions();
   renderHistory();
 }
 
@@ -2482,6 +2537,28 @@ document.addEventListener('click', e => {
   }
   else if (b.id === 'situ-open') { state.popup = 'settings'; state.sessForm = false; $('sess-same').innerHTML = ''; }  // シチュエーションの変更
   else if (d.join) joinSession(d.join, d.sid);  // 同じ名前のセッションに入る／まとめる
+  // 「セッション・履歴」：新しいセッションを作る・このセッションを使う
+  else if (b.id === 'hs-new') {
+    state.hsForm = true;
+    $('hs-date').value = sessionDay();
+    $('hs-name').value = '';
+    $('hs-same').innerHTML = '';
+    renderHistory();
+  }
+  else if (b.id === 'hs-cancel') { state.hsForm = false; renderHistory(); }
+  else if (b.id === 'hs-ok') {
+    newSession($('hs-date').value || sessionDay(), $('hs-name').value.trim());  // 同じ日付・名前があれば、それを使う
+    state.hsForm = false;
+    renderHistory();
+  }
+  else if (d.suse) {
+    // このセッションを今のセッションにする（日付が違っても、今日のうちは続けて使う）
+    activeSessionId = d.suse;
+    pinDay = sessionDay();
+    pruneSessions();
+    saveSessions();
+    renderHistory();
+  }
   else if (b.id === 'sess-new') {
     // 日付と名前を入れて始める欄を開く（日付が変わったときは自動で新しくなる）
     state.sessForm = true;
@@ -2613,6 +2690,7 @@ $('sess-name').addEventListener('change', e => {
 ['input', 'change'].forEach(ev => {
   $('sf-name').addEventListener(ev, e => renderSame('sf-same', e.target.value, 'sf'));
   $('save-name').addEventListener(ev, e => renderSame('save-same', e.target.value, 'save'));
+  $('hs-name').addEventListener(ev, e => renderSame('hs-same', e.target.value, 'hs'));
 });
 // 「選んで移す」のチェック欄
 document.addEventListener('change', e => {
