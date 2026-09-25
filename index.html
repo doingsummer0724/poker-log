@@ -275,7 +275,15 @@
   .sess-date { font-family: var(--font-num); font-weight: 700; font-size: 18px; white-space: nowrap; }
   .sess-name { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .sess-count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-  .sess > .row button { min-height: 36px; font-size: 13px; }
+  .sess-in > .row button { min-height: 36px; font-size: 13px; }
+  .sess .danger { color: var(--warn); }
+  /* 履歴のハンドを直しているときの帯（上部の下） */
+  .edit-bar {
+    flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+    background: var(--felt-soft); border-bottom: 1px solid var(--line);
+  }
+  .edit-bar-title { font-size: 12.5px; font-weight: 700; color: var(--felt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-right: auto; }
+  .edit-bar button { min-height: 34px; padding: 0 8px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
   .sess .hist { margin-left: 4px; padding-left: 10px; border-left: 3px solid var(--felt-soft); }
   .sess .hist-item:first-child { border-top: 0; }
   .sess-in { display: grid; gap: 8px; margin-top: 4px; }
@@ -421,6 +429,13 @@
   </nav>
   <button type="button" id="new-hand" class="new-hand">新しいハンド</button>
 </header>
+<!-- 履歴のハンドを開いて直しているときだけ出る帯 -->
+<div class="edit-bar" id="edit-bar" hidden>
+  <span class="edit-bar-title" id="edit-bar-title"></span>
+  <button type="button" id="edit-over" class="primary">上書き保存</button>
+  <button type="button" id="edit-copy">別に保存</button>
+  <button type="button" id="edit-cancel">やめる</button>
+</div>
 
 <!-- ============================================
      入力の画面（できるだけスクロールせずに1画面に収める）
@@ -757,9 +772,10 @@ const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toLocaleString('ja-JP');            // 12000 → "12,000"
 const bbOf = chips => state.bb ? String(Math.round(chips / state.bb * 100) / 100) : '0'; // 12000 → "2"
 
-// 早押しボタンの額を、きりのよい数字に丸める（BB 6000 なら 100 単位）
+// 早押しボタンの額を、きりのよい数字に丸める
+// トーナメントのチップに合わせて最低でも100単位（BB 10,000 以上なら 1,000 単位）
 function roundChip(x) {
-  const unit = state.bb >= 100 ? Math.pow(10, Math.floor(Math.log10(state.bb)) - 1) : 1;
+  const unit = Math.max(100, Math.pow(10, Math.floor(Math.log10(Math.max(state.bb, 1))) - 1));
   return Math.round(x / unit) * unit;
 }
 
@@ -976,7 +992,8 @@ function presets(sim) {
     list = [['×2.5', roundChip(2.5 * cb)], ['×3', 3 * cb], ['×4', 4 * cb], ['ポット', potRaise]];
   }
   // ミニマムより小さい額にはしない。有効スタックが入っていればオールインも出す
-  list = list.map(([label, to]) => [label, Math.min(Math.max(to, sim.minTo), allin)]);
+  // 額はすべて100単位などに丸める（2.2bb・×3 なども）
+  list = list.map(([label, to]) => [label, Math.min(Math.max(roundChip(to), sim.minTo), allin)]);
   if (allin !== Infinity) list.push(['オールイン', allin]);
   return list;
 }
@@ -1326,11 +1343,24 @@ function saveCurrent() {
   saveJSON('current', data);
 }
 
+// 今のハンドと卓の設定を写し取る（履歴に残す・一時的によけておくとき用）
+function snapshot() {
+  const data = {};
+  SAVE_FIELDS.forEach(k => { data[k] = JSON.parse(JSON.stringify(state[k])); });
+  return data;
+}
+
 // アプリを開いたときに、前回の続きを読み込む
 function restoreCurrent() {
-  const data = loadJSON('current', null);
+  applyData(loadJSON('current', null));
+}
+
+// 写し取った内容を、入力の画面に読み込む
+function applyData(data) {
   if (!data || !POSITIONS[data.seats]) return;
-  SAVE_FIELDS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
+  SAVE_FIELDS.forEach(k => { if (data[k] !== undefined) state[k] = JSON.parse(JSON.stringify(data[k])); });
+  Object.assign(state, { actor: null, pending: null, amount: 0, message: '', pickAuto: false, editIdx: null, editMsg: '' });
+  $('amount').value = '';
   // 入力欄にも反映する
   $('sb').value = state.sb;
   $('bb').value = state.bb;
@@ -1352,24 +1382,99 @@ function finalPot(sim) {
 // 今のハンドを履歴に追加する
 // sessionId：保存先のセッション（省略したら今のセッション）
 function saveToHistory(sessionId) {
-  const sim = simulate();
-  const g = buildGTOW(sim);
-  const data = {};
-  SAVE_FIELDS.forEach(k => { data[k] = JSON.parse(JSON.stringify(state[k])); });
-  const pot = sim.unknown ? null : finalPot(sim);  // 額が未入力なら「?」（null）
   history.unshift({
     id: Date.now(),
     savedAt: new Date().toISOString(),
     sessionId: sessionId || activeSession().id,   // どのセッションのハンドか
-    heroPos: state.heroPos,
-    hero: [...state.hero],
-    pot,
-    text: buildText(sim),            // 記録テキスト
-    gtow: g.ok ? g.text : null,      // GTO Wizard用（作れなかったときは null）
-    data,                            // 入力内容そのもの（あとで集計などに使えるように残す）
+    ...handContent(),
   });
   if (history.length > 500) history.length = 500;  // 多くなりすぎないよう、古いものから消す
   saveJSON('history', history);
+}
+
+// 履歴に残す中身（今の入力内容から作る）
+function handContent() {
+  const sim = simulate();
+  const g = buildGTOW(sim);
+  return {
+    heroPos: state.heroPos,
+    hero: [...state.hero],
+    pot: sim.unknown ? null : finalPot(sim),  // 額が未入力なら「?」（null）
+    text: buildText(sim),            // 記録テキスト
+    gtow: g.ok ? g.text : null,      // GTO Wizard用（作れなかったときは null）
+    data: snapshot(),                // 入力内容そのもの（あとで集計などに使えるように残す）
+  };
+}
+
+// --------------------------------------------
+// 履歴のハンドを開いて直す
+//   editing = { id：直している履歴のハンド, stash：開く前に入力していたハンド（直し終わったら戻す） }
+// --------------------------------------------
+let editing = loadJSON('editing', null);
+
+function startEdit(id) {
+  const h = history.find(x => String(x.id) === String(id));
+  if (!h || !h.data) { alert('このハンドは、入力内容が残っていないため開けません。'); return; }
+  if (editing && !confirm('いま直しているハンドの修正をやめて、このハンドを開きますか？')) return;
+  // 入力中のハンドはよけておく（別のハンドに切り替えるときは、最初によけたものをそのまま使う）
+  const stash = editing ? editing.stash : snapshot();
+  editing = { id: h.id, stash };
+  saveJSON('editing', editing);
+  applyData(h.data);
+  Object.assign(state, { view: 'input', popup: null, pick: null });
+}
+
+// 直し終わった（上書き・別に保存・やめる）：よけておいたハンドに戻して、履歴の画面へ
+function finishEdit() {
+  const stash = editing.stash;
+  editing = null;
+  saveJSON('editing', null);
+  applyData(stash);
+  Object.assign(state, { view: 'history', popup: null });
+  const heroDone = state.heroPos && state.hero.every(c => c);
+  state.pick = heroDone ? null : (state.hero[0] ? 'h1' : 'h0');
+  renderHistory();
+}
+
+// 上書き保存：履歴の同じハンド（同じセッション・同じ番号）を置き換える
+function saveOver() {
+  const h = history.find(x => x.id === editing.id);
+  if (!h) {
+    if (!confirm('元のハンドは削除されています。別のハンドとして保存しますか？')) return;
+    saveCopy();
+    return;
+  }
+  Object.assign(h, handContent());
+  saveJSON('history', history);
+  finishEdit();
+}
+
+// 別のハンドとして保存：元のハンドは残し、同じセッションの新しいハンドとして加える
+function saveCopy() {
+  const h = history.find(x => x.id === editing.id);
+  saveToHistory(h && sessionById(h.sessionId) ? h.sessionId : undefined);
+  finishEdit();
+}
+
+// 修正中の表示（例：9/25 #3 を修正中）
+function editLabel() {
+  const h = history.find(x => x.id === editing.id);
+  if (!h) return '削除されたハンドを修正中';
+  const item = numbered(h.sessionId).find(x => x.h === h);
+  return `${dateLabel(sessionById(h.sessionId).date).replace(/（.）/, '')} #${item ? item.no : '?'} 修正中`;
+}
+
+// セッションをまとめて削除する
+function deleteSession(id) {
+  const s = sessionById(id);
+  const n = handsOf(id).length;
+  if (!confirm(`${dateLabel(s.date)}${s.name ? ' ' + s.name : ''} の ${n}ハンドを、すべて削除しますか？\n（元に戻せません。心配なときは、先に「バックアップ用データをコピー」をしておいてください）`)) return;
+  history = history.filter(h => h.sessionId !== id);
+  sessions = sessions.filter(x => x.id !== id);
+  if (activeSessionId === id) activeSessionId = null;
+  saveJSON('history', history);
+  saveSessions();
+  renderHistory();
 }
 
 const escapeHTML = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -1396,6 +1501,7 @@ function renderHistory() {
         <div class="row">
           <button type="button" class="primary" data-scopy="${id}">まとめてコピー</button>
           <button type="button" data-sname="${id}">名前を変える</button>
+          <button type="button" class="danger" data-sdel="${id}">このセッションを削除</button>
           <span class="copy-msg" id="sess-msg-${id}"></span>
         </div>
         <pre id="sess-pre-${id}" hidden></pre>
@@ -1412,6 +1518,7 @@ function histItem(h, no) {
     <summary><span class="hist-time">#${no}　${timeLabel(h.savedAt)}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${h.pot == null ? '?' : fmt(h.pot)}</span></summary>
     <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
     <div class="row">
+      <button type="button" class="primary" data-hedit="${h.id}">開いて直す</button>
       <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
       <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>GTO Wizard用をコピー</button>
       <button type="button" class="danger" data-hdel="${h.id}">削除</button>
@@ -1439,6 +1546,10 @@ function render() {
   $('settings-pop').hidden = state.popup !== 'settings';
   $('log-pop').hidden = state.popup !== 'log';
   $('save-pop').hidden = state.popup !== 'save';
+  // 履歴のハンドを直しているときは、帯を出して「新しいハンド」は隠す
+  $('edit-bar').hidden = !editing;
+  $('new-hand').hidden = !!editing;
+  if (editing) $('edit-bar-title').textContent = editLabel();
   if (state.popup === 'settings') renderSession();
   if (state.popup === 'save') renderSave();
 
@@ -1619,7 +1730,8 @@ function renderPad(sim) {
     .join('');
 
   // ハンドが終わったら「次のハンドへ」を大きく出す（保存先を選んで保存・コピーして次へ も）
-  $('end-btns').hidden = !sim.done;
+  // 履歴のハンドを直しているときは出さない（上の帯の「上書き保存」「別に保存」を使う）
+  $('end-btns').hidden = !sim.done || !!editing;
 
   if (sim.done) {
     if (sim.alive.length <= 1) {
@@ -2022,6 +2134,7 @@ document.addEventListener('click', e => {
   if (d.scopy) { copyString(sessionText(d.scopy), `sess-pre-${d.scopy}`, `sess-msg-${d.scopy}`); return; }
   if (d.sname) { renameSession(d.sname); return; }
   if (b.id === 'copy-next') { copyAndNext(); return; }  // 描き直しは copyAndNext の中で行う
+  if (d.sdel) { deleteSession(d.sdel); return; }
   if (b.id === 'backup-copy') { copyString(backupText(), 'backup-pre', 'backup-msg'); return; }
   if (b.id === 'restore-btn') { restoreBackup(); return; }
 
@@ -2084,6 +2197,13 @@ document.addEventListener('click', e => {
   else if (b.id === 'save-as') openSave();                  // 保存先を選んで保存
   else if (d.starget) state.saveTarget = d.starget;          // 保存先のセッションを選ぶ
   else if (b.id === 'save-ok') confirmSave();
+  else if (d.hedit) startEdit(d.hedit);                     // 履歴のハンドを開いて直す
+  else if (b.id === 'edit-over') saveOver();
+  else if (b.id === 'edit-copy') saveCopy();
+  else if (b.id === 'edit-cancel') {
+    if (!confirm('修正をやめますか？（直した内容は保存されません）')) return;
+    finishEdit();
+  }
   else return;
 
   render();
