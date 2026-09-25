@@ -283,12 +283,15 @@
   /* 選んで移す：チェック欄つきの1行と、画面下の帯 */
   .hist-sel { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; cursor: pointer; }
   .hist-sel input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--felt); }
+  .sel-top { display: flex; align-items: center; gap: 8px; }
+  .sel-top .copy-msg { font-size: 12px; margin-right: auto; }
+  .sel-acts { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px; }
   .sel-bar {
-    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0; display: grid; gap: 6px;
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
     background: var(--surface); border-top: 1px solid var(--line);
   }
-  .sel-count { font-size: 13px; font-weight: 700; margin-right: auto; }
+  .sel-count { font-size: 13px; font-weight: 700; white-space: nowrap; }
   .sel-bar button { min-height: 40px; font-size: 13.5px; }
   /* 入力画面の1行目：長いときは「…」で省略 */
   .situ-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -529,7 +532,8 @@
     <div class="panel">
       <pre id="output"></pre>
       <div class="row">
-        <button type="button" id="copy" class="primary">テキストをコピー</button>
+        <button type="button" id="share" class="primary">共有（LINE・メモなど）</button>
+        <button type="button" id="copy">テキストをコピー</button>
         <span class="copy-msg" id="copy-msg"></span>
       </div>
     </div>
@@ -561,7 +565,8 @@
     <div class="panel">
       <p class="hint warn" id="home-hint" hidden>iPhoneでは、しばらく開かないと保存した履歴が消えることがあります。Safariでこのページを開き、共有ボタン（□に↑）→「ホーム画面に追加」して、ホーム画面のアイコンから使うのがおすすめです。ホーム画面のアプリとブラウザでは保存場所が別なので、履歴を移すときは下の「バックアップ・復元」を使ってください。</p>
       <p class="hint" id="hist-note"></p>
-      <div class="row" id="sel-row"><button type="button" id="sel-start">選んで移す</button><span class="hint">ハンドを別のセッションや名無しへ移せます</span></div>
+      <div class="row" id="sel-row"><button type="button" id="sel-start">選ぶ（共有・移す）</button><span class="hint">好きなハンドをまとめて共有したり、別のセッションへ移したりできます</span></div>
+      <pre id="sel-pre" hidden></pre>
       <div class="hist" id="history"></div>
       <!-- バックアップ・復元 -->
       <details class="backup">
@@ -585,11 +590,18 @@
   </section>
 </main>
 
-<!-- 「選んで移す」の間だけ、画面の下に出る帯 -->
+<!-- 「選ぶ（共有・移す）」の間だけ、画面の下に出る帯 -->
 <div class="sel-bar" id="sel-bar" hidden>
-  <span class="sel-count" id="sel-count"></span>
-  <button type="button" id="sel-move" class="primary">移す先を選ぶ</button>
-  <button type="button" id="sel-cancel">やめる</button>
+  <div class="sel-top">
+    <span class="sel-count" id="sel-count"></span>
+    <span class="copy-msg" id="sel-msg"></span>
+    <button type="button" id="sel-cancel">やめる</button>
+  </div>
+  <div class="sel-acts">
+    <button type="button" id="sel-share" class="primary">まとめて共有</button>
+    <button type="button" id="sel-copy">コピー</button>
+    <button type="button" id="sel-move">移す</button>
+  </div>
 </div>
 
 <!-- アクション履歴（詳しく）のポップアップ -->
@@ -1329,8 +1341,40 @@ function pruneSessions() {
   sessions = sessions.filter(s => s.id === NONE || s.id === activeSessionId || handsOf(s.id).length);
 }
 
+// 同じ日付・同じ名前のセッションを探す（名前が空のときは探さない：同じ日に名前なしで分けたいとき用）
+function findSession(date, name, exceptId) {
+  if (!name) return null;
+  return sessions.find(s => s.id !== NONE && s.id !== exceptId && s.date === date && s.name === name) || null;
+}
+
+// セッション fromId のハンドを、セッション toId に移して1つにまとめる
+function mergeSession(fromId, toId) {
+  history.forEach(h => { if (h.sessionId === fromId) h.sessionId = toId; });
+  sessions = sessions.filter(s => s.id !== fromId);
+  if (activeSessionId === fromId) { activeSessionId = toId; pinDay = sessionDay(); }
+  saveJSON('history', history);
+  saveSessions();
+}
+
+// 日付・名前を変えたあと、同じ日付・名前のセッションがほかにあれば、確認してまとめる
+function checkSameSession(id) {
+  const s = sessionById(id);
+  const other = s && findSession(s.date, s.name, id);
+  if (!other) return;
+  if (!confirm(`「${dateLabel(s.date)} ${s.name}」は、すでにあります。1つにまとめますか？\n（まとめないと、同じ名前のセッションが2つ並びます）`)) return;
+  mergeSession(id, other.id);
+}
+
 // 新しいセッションを始める（date・name：日付と名前。省略したら今日・名前なし）
+// 同じ日付・同じ名前のセッションがすでにあれば、新しく作らずにそれを使う
 function newSession(date = sessionDay(), name = '') {
+  const same = findSession(date, name);
+  if (same) {
+    activeSessionId = same.id;
+    pinDay = sessionDay();  // 日付が違うセッションでも、今日のうちは続けて使う
+    saveSessions();
+    return same;
+  }
   const day = sessionDay();
   sessions = sessions.filter(s => s.id === NONE || handsOf(s.id).length);  // ハンドのない古いセッションは消しておく
   const s = { id: 's' + Date.now(), day, date, name };
@@ -1531,6 +1575,14 @@ function deleteSession(id) {
 
 const escapeHTML = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
+// 履歴に出すセッションの順番（日付の新しいセッションが上。同じ日付なら、新しいハンドがある方が上。名無しは一番下）
+function sessionOrder() {
+  return [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id))
+    .map((id, i) => ({ id, i, date: sessionById(id).date }))
+    .sort((a, b) => (a.date === b.date ? a.i - b.i : a.date < b.date ? 1 : -1))
+    .map(x => x.id);
+}
+
 // 履歴の一覧を描く（開いている項目が閉じないよう、履歴が変わったときだけ描き直す）
 function renderHistory() {
   $('hist-note').textContent = !storageOK
@@ -1539,23 +1591,19 @@ function renderHistory() {
       ? `${history.length}件（このスマホのブラウザの中だけに保存されます。閲覧データを消すと消えます）`
       : 'まだありません。「新しいハンド」を押すと、今のハンドがここに保存されます。';
 
-  // 「選んで移す」のボタン（選んでいる間は、下の帯を使う）
+  // 「選ぶ（共有・移す）」のボタン（選んでいる間は、下の帯を使う）
   $('sel-row').hidden = !history.length || state.selecting;
   $('sel-bar').hidden = !(state.selecting && state.view === 'history');
   updateSelCount();
 
-  // セッションごとにまとめる（日付の新しいセッションが上。同じ日付なら、新しいハンドがある方が上。名無しは一番下）
-  const ids = [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id))
-    .map((id, i) => ({ id, i, date: sessionById(id).date }))
-    .sort((a, b) => (a.date === b.date ? a.i - b.i : a.date < b.date ? 1 : -1))
-    .map(x => x.id);
-  $('history').innerHTML = ids.map((id, gi) => {
+  $('history').innerHTML = sessionOrder().map((id, gi) => {
     const s = sessionById(id);
     const list = numbered(id).reverse();  // 画面では新しい順に出す
     // 選んでいる間は、全部のセッションを開いて、ボタンは「全部選ぶ」だけにする
     const buttons = state.selecting
       ? `<button type="button" data-sselall="${id}">このセッションを全部選ぶ</button>`
-      : `<button type="button" class="primary" data-scopy="${id}">まとめてコピー</button>
+      : `<button type="button" class="primary" data-sshare="${id}">まとめて共有</button>
+          <button type="button" data-scopy="${id}">まとめてコピー</button>
           ${id === NONE ? '' : `<button type="button" data-sname="${id}">名前を変える</button>`}
           <button type="button" class="danger" data-sdel="${id}">${id === NONE ? '中身を全部削除' : 'このセッションを削除'}</button>`;
     return `<details class="sess"${gi === 0 || state.selecting ? ' open' : ''}>
@@ -1585,6 +1633,7 @@ function histItem(h, no) {
     <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
     <div class="row">
       <button type="button" class="primary" data-hedit="${h.id}">開いて直す</button>
+      <button type="button" data-hshare="${h.id}">共有</button>
       <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
       <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>GTO Wizard用をコピー</button>
       <button type="button" class="danger" data-hdel="${h.id}">削除</button>
@@ -1626,7 +1675,7 @@ const selected = new Set();  // 選んでいるハンドの番号（id）
 
 function updateSelCount() {
   $('sel-count').textContent = `${selected.size}件を選択中`;
-  $('sel-move').disabled = !selected.size;
+  ['sel-move', 'sel-share', 'sel-copy'].forEach(id => { $(id).disabled = !selected.size; });
 }
 
 // 選んだハンドを、選んだセッションへ移す
@@ -1642,6 +1691,43 @@ function moveSelected(id) {
 function endSelect() {
   state.selecting = false;
   selected.clear();
+  $('sel-msg').textContent = '';
+  $('sel-pre').hidden = true;  // コピーできなかったときに出した文字も隠す
+}
+
+// 選んだハンドをまとめたテキスト（セッションごとに見出しを付け、番号はそのセッションでの番号のまま、古い順）
+function selectedText() {
+  return sessionOrder().map(id => {
+    const list = numbered(id).filter(({ h }) => selected.has(String(h.id)));
+    if (!list.length) return null;
+    const s = sessionById(id);
+    const head = `■ ${s.date ? s.date.replace(/-/g, '/') : '名無し'}${s.name ? ' ' + s.name : ''}（${list.length}ハンド）`;
+    return [head, ...list.map(({ h, no }) => `#${no} ${timeLabel(h.savedAt)}\n${h.text}`)].join('\n\n');
+  }).filter(Boolean).join('\n\n\n');
+}
+
+// ============================================
+// 共有（LINE・メモなど）
+//   スマホの共有画面（□に↑ と同じ）を開く。共有が使えない環境では、コピーに切り替える
+// ============================================
+const LINE_LIMIT = 10000;  // LINEの1通の文字数の上限（だいたい）
+
+async function shareString(text, preId, msgId) {
+  const long = text.length > LINE_LIMIT
+    ? `（${text.length.toLocaleString('ja-JP')}文字あります。LINEは1通約1万文字までなので、途中で切れることがあります）`
+    : '';
+  if (navigator.share) {
+    try {
+      await navigator.share({ text });
+      $(msgId).textContent = '共有しました' + long;
+    } catch (err) {
+      // 共有画面を閉じただけ（キャンセル）のときは何もしない
+      if (err && err.name === 'AbortError') { $(msgId).textContent = long; return; }
+      if (await copyString(text, preId, msgId)) $(msgId).textContent = '共有できなかったので、コピーしました' + long;
+    }
+    return;
+  }
+  if (await copyString(text, preId, msgId)) $(msgId).textContent = 'この環境では共有が使えないので、コピーしました' + long;
 }
 
 function render() {
@@ -2186,10 +2272,15 @@ function confirmSave() {
   if (id === 'new') {
     const date = $('save-date').value;
     if (!date) { $('save-msg').textContent = '日付を入れてください（日付なしにしたいときは「名無し」を選んでください）。'; return; }
-    // day：日付が変わったときの自動の区切りに使う。移すときに作ったセッションは、自動では使わない
-    const s = { id: 's' + Date.now(), day: move ? null : sessionDay(), date, name: $('save-name').value.trim() };
-    sessions.unshift(s);
-    id = s.id;
+    const name = $('save-name').value.trim();
+    const same = findSession(date, name);
+    if (same) id = same.id;  // 同じ日付・同じ名前のセッションがすでにあれば、そこに入れる
+    else {
+      // day：日付が変わったときの自動の区切りに使う。移すときに作ったセッションは、自動では使わない
+      const s = { id: 's' + Date.now(), day: move ? null : sessionDay(), date, name };
+      sessions.unshift(s);
+      id = s.id;
+    }
   }
   if (move) {
     state.popup = null;
@@ -2207,6 +2298,7 @@ async function copyString(text, preId, msgId) {
   try {
     await navigator.clipboard.writeText(text);
     $(msgId).textContent = 'コピーしました';
+    return true;  // コピーできた
   } catch (err) {
     const pre = $(preId);
     pre.textContent = text;
@@ -2219,6 +2311,7 @@ async function copyString(text, preId, msgId) {
     sel.removeAllRanges();
     sel.addRange(range);
     $(msgId).textContent = '文字を選択しました。長押しでコピーしてください';
+    return false;
   }
 }
 const copyText = (preId, msgId) => copyString($(preId).textContent, preId, msgId);
@@ -2256,6 +2349,16 @@ document.addEventListener('click', e => {
   // コピーは画面を描き直さない
   if (b.id === 'copy') { copyText('output', 'copy-msg'); return; }
   if (b.id === 'copy-gtow') { copyText('gtow', 'copy-gtow-msg'); return; }
+  // 共有（LINE・メモなど）
+  if (b.id === 'share') { shareString($('output').textContent, 'output', 'copy-msg'); return; }
+  if (d.hshare) {
+    const h = history.find(x => String(x.id) === d.hshare);
+    if (h) shareString(h.text, `hist-text-${h.id}`, `hist-msg-${h.id}`);
+    return;
+  }
+  if (d.sshare) { shareString(sessionText(d.sshare), `sess-pre-${d.sshare}`, `sess-msg-${d.sshare}`); return; }
+  if (b.id === 'sel-share') { shareString(selectedText(), 'sel-pre', 'sel-msg'); return; }
+  if (b.id === 'sel-copy') { copyString(selectedText(), 'sel-pre', 'sel-msg'); return; }
   if (d.hcopy || d.hdel) { historyButton(d); return; }
   if (d.scopy) { copyString(sessionText(d.scopy), `sess-pre-${d.scopy}`, `sess-msg-${d.scopy}`); return; }
   if (d.sname) { renameSession(d.sname); return; }
@@ -2377,6 +2480,7 @@ $('sess-date').addEventListener('change', e => {
   if (!e.target.value || s.id === NONE) return;
   s.date = e.target.value;
   saveSessions();
+  checkSameSession(s.id);  // 同じ日付・名前のセッションがあれば、まとめるか聞く
   renderHistory();
   render();
 });
@@ -2387,6 +2491,15 @@ $('sess-name').addEventListener('input', e => {
   saveSessions();
   renderHistory();
   render();  // 入力画面の1行目のセッション名も変える
+});
+// 名前を打ち終わったとき（欄から離れたとき）に、同じ日付・名前のセッションがあれば、まとめるか聞く
+// （打っている途中の「大会」などで、別のセッションとまとまらないように）
+$('sess-name').addEventListener('change', () => {
+  const s = activeSession();
+  if (s.id === NONE) return;
+  checkSameSession(s.id);
+  renderHistory();
+  render();
 });
 // 「選んで移す」のチェック欄
 document.addEventListener('change', e => {
@@ -2436,6 +2549,7 @@ function renameSession(id) {
   if (name === null) return;  // キャンセル
   s.name = name.trim();
   saveSessions();
+  checkSameSession(id);  // 同じ日付・名前のセッションがあれば、まとめるか聞く
   renderHistory();
 }
 
