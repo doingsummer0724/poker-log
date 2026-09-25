@@ -396,6 +396,10 @@
      ============================================ */
   .modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
   .modal-back { position: absolute; inset: 0; background: rgb(0 0 0 / .4); }
+  /* 続きから入力するかのポップアップは、ほかのポップアップより手前・画面の真ん中に出す */
+  .resume-pop { z-index: 30; align-items: center; }
+  .resume-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .resume-btns button { min-height: 50px; font-size: 14.5px; padding: 0 6px; }
   .modal-box {
     position: relative; width: 100%; max-width: 560px;
     margin: 0 6px calc(6px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
@@ -664,6 +668,20 @@
     </div>
     <!-- HEROの手札が2枚そろったときだけ出る（押し間違えたら、閉じずにそのまま選び直せる） -->
     <button type="button" id="to-board" class="primary to-board" hidden></button>
+  </div>
+</div>
+
+<!-- アプリを開いたとき、作成中のハンドがあれば出すポップアップ（どちらかを選ぶまで閉じない） -->
+<div class="modal resume-pop" id="resume-pop" hidden>
+  <div class="modal-back"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="resume-msg">
+    <div class="turn"><b id="resume-msg">作成中のハンドがあります。続きから入力しますか？</b></div>
+    <p class="hint" id="resume-detail"></p>
+    <div class="resume-btns">
+      <button type="button" id="resume-yes" class="primary">はい（続きから）</button>
+      <button type="button" id="resume-no">いいえ（新しいハンド）</button>
+    </div>
+    <p class="hint">「いいえ」を選ぶと、作成中のハンドは消えて、卓の設定も初めの状態に戻ります（履歴は消えません）。</p>
   </div>
 </div>
 
@@ -1810,6 +1828,7 @@ function render() {
   $('settings-pop').hidden = state.popup !== 'settings';
   $('log-pop').hidden = state.popup !== 'log';
   $('save-pop').hidden = state.popup !== 'save';
+  $('resume-pop').hidden = state.popup !== 'resume';
   $('sel-bar').hidden = !(state.selecting && state.view === 'history');
   // 履歴のハンドを直しているときは、帯を出して「新しいハンド」は隠す
   $('edit-bar').hidden = !editing;
@@ -2661,11 +2680,41 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platfor
 const isStandalone = navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 $('home-hint').hidden = !(isIOS && !isStandalone);
 
+// 初めの状態（初めて開いたときの卓の設定・空のハンド）を覚えておく（「いいえ（新しいハンド）」で戻すため）
+const DEFAULTS = snapshot();
+
 // はじめて使うときだけ、シチュエーション（卓の設定）のポップアップを開いておく
 if (!loadJSON('current', null)) state.popup = 'settings';
 
 // 最初の表示（前回の続きを読み込んでから描く）
 restoreCurrent();
+
+// 作成中のハンド（手札・ボード・アクションのどれかが入っている）があれば、続きから入力するか聞く
+if (state.actions.length || usedCards().length || editing) {
+  state.popup = 'resume';
+  if (editing) {
+    $('resume-msg').textContent = `履歴の「${editLabel().replace(' 修正中', '')}」を修正中でした。続きから修正しますか？`;
+  }
+  const cards = state.hero.map(c => (c ? c[0] + SUIT_MARK[c[1]] : '?')).join('');
+  $('resume-detail').textContent = `${state.heroPos || 'ポジション未選択'} ${cards} ・ アクション${state.actions.length}件`;
+}
+
+// 続きから入力する
+function resumeYes() {
+  state.popup = null;
+}
+
+// 新しいハンドから始める：作成中のハンドを消し、卓の設定も初めの状態に戻す（履歴・セッションはそのまま）
+function resumeNo() {
+  editing = null;
+  saveJSON('editing', null);
+  applyData(DEFAULTS);
+  Object.assign(state, { view: 'input', popup: 'settings', sessForm: false });  // 初めて開いたときと同じく、卓の設定を開く
+}
+
+$('resume-yes').addEventListener('click', () => { resumeYes(); render(); });
+$('resume-no').addEventListener('click', () => { resumeNo(); render(); });
+
 render();
 renderHistory();
 </script>
