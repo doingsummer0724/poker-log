@@ -315,6 +315,21 @@
   .streets .now { background: var(--felt); border-color: var(--felt); color: var(--surface); }
   .pad-body { display: grid; gap: 7px; }
   .next-hand { width: 100%; min-height: 50px; font-size: 16px; }
+  /* ハンド終了時のボタン（次のハンドへ・保存先を選んで保存・コピーして次へ） */
+  .end-btns { display: grid; gap: 6px; }
+  .end-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .end-sub button { min-height: 42px; font-size: 13px; padding: 0 4px; line-height: 1.2; }
+  .end-sub small { display: block; font-size: 11px; color: var(--muted); }
+  /* 保存先のセッションを選ぶポップアップ */
+  .save-list { display: grid; gap: 6px; }
+  .save-list button { text-align: left; display: flex; gap: 8px; align-items: baseline; min-height: 42px; }
+  .save-list button.on small { color: var(--surface); }
+  .save-list b { white-space: nowrap; }
+  .save-list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .save-list small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .save-new { display: grid; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 10px; }
+  .save-keep { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .save-keep input { width: 20px; height: 20px; }
   .new-hand { min-height: 34px; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
   /* ショーダウン（相手の手札） */
   .showdown { display: grid; gap: 8px; }
@@ -462,7 +477,13 @@
     </div>
     <!-- ハンドが終わったときだけ出る：ショーダウン（相手の手札）と「次のハンドへ」 -->
     <div class="showdown" id="showdown" hidden></div>
-    <button type="button" id="next-hand" class="primary next-hand" hidden>次のハンドへ（履歴に保存）</button>
+    <div class="end-btns" id="end-btns" hidden>
+      <button type="button" id="next-hand" class="primary next-hand">次のハンドへ（履歴に保存）</button>
+      <div class="end-sub">
+        <button type="button" id="save-as">保存先を選んで保存</button>
+        <button type="button" id="copy-next">コピーして次へ<small>（保存しない）</small></button>
+      </div>
+    </div>
     <div class="msg" id="msg"></div>
   </div>
 </main>
@@ -587,6 +608,32 @@
   </div>
 </div>
 
+<!-- 保存先のセッションを選んで保存するポップアップ -->
+<div class="modal" id="save-pop" hidden>
+  <div class="modal-back" data-close="save"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="保存先を選んで保存">
+    <div class="modal-top">
+      <div class="turn"><b>保存先のセッション</b></div>
+      <button type="button" data-close="save">閉じる</button>
+    </div>
+    <div class="save-list" id="save-list"></div>
+    <!-- 「新しいセッション」を選んだときだけ出る -->
+    <div class="save-new" id="save-new" hidden>
+      <div class="row">
+        <span class="label">日付</span>
+        <input type="date" id="save-date" aria-label="新しいセッションの日付">
+      </div>
+      <div class="row">
+        <span class="label">名前</span>
+        <input type="text" id="save-name" placeholder="店名・大会名など（なくてもOK）" aria-label="新しいセッションの名前">
+      </div>
+    </div>
+    <label class="save-keep"><input type="checkbox" id="save-keep" checked>このあとのハンドも、このセッションに入れる</label>
+    <div class="msg" id="save-msg"></div>
+    <button type="button" id="save-ok" class="primary to-board">保存して次のハンドへ</button>
+  </div>
+</div>
+
 <!-- シチュエーション（卓の設定）のポップアップ -->
 <div class="modal" id="settings-pop" hidden>
   <div class="modal-back" data-close="settings"></div>
@@ -702,6 +749,7 @@ const state = {
   popup: null,        // 開いているポップアップ：'settings'（シチュエーション）/'log'（アクション履歴）。カード選択は pick で決まる
   editIdx: null,      // 詳しい履歴で、額を入れ直しているアクションの番号
   editMsg: '',        // 額を入れ直すときの注意メッセージ
+  saveTarget: null,   // 「保存先を選んで保存」で選んでいるセッション（'new'＝新しいセッション）
 };
 
 // 短く書くための道具
@@ -1195,6 +1243,8 @@ let history = loadJSON('history', []);  // ハンド履歴（新しい順）
 // --------------------------------------------
 let sessions = loadJSON('sessions', []);            // セッションの一覧
 let activeSessionId = loadJSON('session', null);    // 今のセッション
+// 「保存先を選んで保存」で「このあとも」を選んだ日。その日のうちは、日付が違うセッションでも続けて使う
+let pinDay = loadJSON('sessionPin', null);
 const DAY_START = 6;  // 朝6時より前は前の日とみなす（夜中までのプレイが日付で2つに分かれないように）
 const two = x => String(x).padStart(2, '0');
 
@@ -1206,6 +1256,7 @@ function sessionDay(t = new Date()) {
 function saveSessions() {
   saveJSON('sessions', sessions);
   saveJSON('session', activeSessionId);
+  saveJSON('sessionPin', pinDay);
 }
 const sessionById = id => sessions.find(s => s.id === id);
 const handsOf = id => history.filter(h => h.sessionId === id);
@@ -1217,6 +1268,7 @@ function newSession() {
   const s = { id: 's' + Date.now(), day, date: day, name: '' };
   sessions.unshift(s);
   activeSessionId = s.id;
+  pinDay = null;
   saveSessions();
   return s;
 }
@@ -1225,7 +1277,7 @@ function newSession() {
 function activeSession() {
   const today = sessionDay();
   const s = sessionById(activeSessionId);
-  if (s && s.day === today) return s;
+  if (s && (s.day === today || pinDay === today)) return s;
   // 今日のセッションがすでにあれば（前の版で保存した今日のハンドなど）、それを続けて使う
   const same = sessions.find(x => x.day === today);
   if (same) { activeSessionId = same.id; saveSessions(); return same; }
@@ -1298,7 +1350,8 @@ function finalPot(sim) {
 }
 
 // 今のハンドを履歴に追加する
-function saveToHistory() {
+// sessionId：保存先のセッション（省略したら今のセッション）
+function saveToHistory(sessionId) {
   const sim = simulate();
   const g = buildGTOW(sim);
   const data = {};
@@ -1307,7 +1360,7 @@ function saveToHistory() {
   history.unshift({
     id: Date.now(),
     savedAt: new Date().toISOString(),
-    sessionId: activeSession().id,   // どのセッションのハンドか
+    sessionId: sessionId || activeSession().id,   // どのセッションのハンドか
     heroPos: state.heroPos,
     hero: [...state.hero],
     pot,
@@ -1329,8 +1382,11 @@ function renderHistory() {
       ? `${history.length}件（このスマホのブラウザの中だけに保存されます。閲覧データを消すと消えます）`
       : 'まだありません。「新しいハンド」を押すと、今のハンドがここに保存されます。';
 
-  // セッションごとにまとめる（新しいハンドがあるセッションが上）
-  const ids = [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id));
+  // セッションごとにまとめる（日付の新しいセッションが上。同じ日付なら、新しいハンドがある方が上）
+  const ids = [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id))
+    .map((id, i) => ({ id, i, date: sessionById(id).date }))
+    .sort((a, b) => (a.date === b.date ? a.i - b.i : a.date < b.date ? 1 : -1))
+    .map(x => x.id);
   $('history').innerHTML = ids.map((id, gi) => {
     const s = sessionById(id);
     const list = numbered(id).reverse();  // 画面では新しい順に出す
@@ -1382,7 +1438,9 @@ function render() {
   ['input', 'text', 'history'].forEach(v => { $(`view-${v}`).hidden = v !== state.view; });
   $('settings-pop').hidden = state.popup !== 'settings';
   $('log-pop').hidden = state.popup !== 'log';
+  $('save-pop').hidden = state.popup !== 'save';
   if (state.popup === 'settings') renderSession();
+  if (state.popup === 'save') renderSave();
 
   // ① シチュエーション（1行）とポット
   const anteLabel = { none: 'アンティなし', bb: 'BBアンティ', all: '各自アンティ' }[state.anteType];
@@ -1560,8 +1618,8 @@ function renderPad(sim) {
     .map((name, s) => `<span class="${s === now && !sim.done ? 'now' : s <= now ? 'done' : ''}">${name}</span>`)
     .join('');
 
-  // ハンドが終わったら「次のハンドへ」を大きく出す
-  $('next-hand').hidden = !sim.done;
+  // ハンドが終わったら「次のハンドへ」を大きく出す（保存先を選んで保存・コピーして次へ も）
+  $('end-btns').hidden = !sim.done;
 
   if (sim.done) {
     if (sim.alive.length <= 1) {
@@ -1831,13 +1889,79 @@ function newHand() {
     // 終わったハンドは確認なしで進む。途中のハンドのときだけ確認する
     const done = simulate().done && state.actions.length > 0;
     if (!done && !confirm('ハンドの途中です。今のハンドを履歴に保存して、新しいハンドを始めますか？' + note)) return;
-    saveToHistory();
+  }
+  goNext(hasData);
+}
+
+// 次のハンドへ進む（save：履歴に保存するか、sessionId：保存先のセッション。省略したら今のセッション）
+function goNext(save, sessionId) {
+  if (save) {
+    saveToHistory(sessionId);
     renderHistory();
   }
+  const nextPos = nextHeroPos();
   clearHand();
   Object.assign(state, { heroPos: nextPos, hero: [null, null], pick: 'h0', pickAuto: false, view: 'input', popup: null });
   $('copy-msg').textContent = '';
   $('copy-gtow-msg').textContent = '';
+}
+
+// 「コピーして次へ」：記録テキストをコピーして、履歴には保存せずに次のハンドへ
+// （コピーできなかったときは、ハンドが消えないように次へは進まず、テキストの画面を開く）
+async function copyAndNext() {
+  const text = buildText(simulate());
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    state.view = 'text';
+    render();
+    $('copy-msg').textContent = 'コピーできませんでした。「テキストをコピー」を押すか、長押しでコピーしてください（ハンドはそのまま残しています）';
+    return;
+  }
+  goNext(false);
+  state.message = '記録テキストをコピーしました（履歴には保存していません）';
+  render();
+}
+
+// 「保存先を選んで保存」のポップアップを開く
+function openSave() {
+  state.popup = 'save';
+  state.saveTarget = activeSession().id;  // はじめは今のセッションを選んでおく
+  $('save-date').value = sessionDay();
+  $('save-name').value = '';
+  $('save-keep').checked = true;
+  $('save-msg').textContent = '';
+}
+
+// 保存先の候補（日付の新しい順に8つまで。今のセッションは必ず入れる）
+function renderSave() {
+  const cur = activeSession().id;
+  const list = sessions
+    .filter(s => s.id === cur || handsOf(s.id).length)
+    .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
+    .slice(0, 8);
+  $('save-list').innerHTML = list.map(s => `
+    <button type="button" data-starget="${s.id}" class="${state.saveTarget === s.id ? 'on' : ''}">
+      <b>${dateLabel(s.date)}</b><span>${escapeHTML(s.name)}</span><small>${s.id === cur ? '今のセッション・' : ''}${handsOf(s.id).length}ハンド</small>
+    </button>`).join('') +
+    `<button type="button" data-starget="new" class="${state.saveTarget === 'new' ? 'on' : ''}"><b>＋ 新しいセッション</b></button>`;
+  $('save-new').hidden = state.saveTarget !== 'new';
+}
+
+// 選んだセッションに保存して、次のハンドへ
+function confirmSave() {
+  let id = state.saveTarget;
+  if (id === 'new') {
+    const date = $('save-date').value;
+    if (!date) { $('save-msg').textContent = '日付を入れてください。'; return; }
+    const s = { id: 's' + Date.now(), day: sessionDay(), date, name: $('save-name').value.trim() };
+    sessions.unshift(s);
+    id = s.id;
+  }
+  // 「このあとも」なら、今日のうちはこのセッションを今のセッションにする
+  if ($('save-keep').checked) { activeSessionId = id; pinDay = sessionDay(); }
+  saveSessions();
+  goNext(true, id);
 }
 
 // 文字をコピーし、msgId に結果を出す。コピーできない環境では preId の中の文字を選択状態にする
@@ -1897,6 +2021,7 @@ document.addEventListener('click', e => {
   if (d.hcopy || d.hdel) { historyButton(d); return; }
   if (d.scopy) { copyString(sessionText(d.scopy), `sess-pre-${d.scopy}`, `sess-msg-${d.scopy}`); return; }
   if (d.sname) { renameSession(d.sname); return; }
+  if (b.id === 'copy-next') { copyAndNext(); return; }  // 描き直しは copyAndNext の中で行う
   if (b.id === 'backup-copy') { copyString(backupText(), 'backup-pre', 'backup-msg'); return; }
   if (b.id === 'restore-btn') { restoreBackup(); return; }
 
@@ -1956,6 +2081,9 @@ document.addEventListener('click', e => {
     Object.assign(state, { actor: null, pending: null, message: '', pick: null, pickAuto: false });
   }
   else if (b.id === 'new-hand' || b.id === 'next-hand') newHand();
+  else if (b.id === 'save-as') openSave();                  // 保存先を選んで保存
+  else if (d.starget) state.saveTarget = d.starget;          // 保存先のセッションを選ぶ
+  else if (b.id === 'save-ok') confirmSave();
   else return;
 
   render();
