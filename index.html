@@ -277,6 +277,22 @@
   .sess-count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
   .sess-in > .row button { min-height: 36px; font-size: 13px; }
   .sess .danger { color: var(--warn); }
+  /* 長いセッション名などで、履歴の枠が画面の幅より広がらないように */
+  .panel, details, .hist, .sess-in { grid-template-columns: minmax(0, 1fr); }
+  .sess > summary { min-width: 0; }
+  /* 選んで移す：チェック欄つきの1行と、画面下の帯 */
+  .hist-sel { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; cursor: pointer; }
+  .hist-sel input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--felt); }
+  .sel-bar {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); border-top: 1px solid var(--line);
+  }
+  .sel-count { font-size: 13px; font-weight: 700; margin-right: auto; }
+  .sel-bar button { min-height: 40px; font-size: 13.5px; }
+  /* 入力画面の1行目：長いときは「…」で省略 */
+  .situ-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .situ-sum b { color: var(--felt); }
   /* 履歴のハンドを直しているときの帯（上部の下） */
   .edit-bar {
     flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
@@ -545,6 +561,7 @@
     <div class="panel">
       <p class="hint warn" id="home-hint" hidden>iPhoneでは、しばらく開かないと保存した履歴が消えることがあります。Safariでこのページを開き、共有ボタン（□に↑）→「ホーム画面に追加」して、ホーム画面のアイコンから使うのがおすすめです。ホーム画面のアプリとブラウザでは保存場所が別なので、履歴を移すときは下の「バックアップ・復元」を使ってください。</p>
       <p class="hint" id="hist-note"></p>
+      <div class="row" id="sel-row"><button type="button" id="sel-start">選んで移す</button><span class="hint">ハンドを別のセッションや名無しへ移せます</span></div>
       <div class="hist" id="history"></div>
       <!-- バックアップ・復元 -->
       <details class="backup">
@@ -567,6 +584,13 @@
     </div>
   </section>
 </main>
+
+<!-- 「選んで移す」の間だけ、画面の下に出る帯 -->
+<div class="sel-bar" id="sel-bar" hidden>
+  <span class="sel-count" id="sel-count"></span>
+  <button type="button" id="sel-move" class="primary">移す先を選ぶ</button>
+  <button type="button" id="sel-cancel">やめる</button>
+</div>
 
 <!-- アクション履歴（詳しく）のポップアップ -->
 <div class="modal" id="log-pop" hidden>
@@ -628,7 +652,7 @@
   <div class="modal-back" data-close="save"></div>
   <div class="modal-box" role="dialog" aria-modal="true" aria-label="保存先を選んで保存">
     <div class="modal-top">
-      <div class="turn"><b>保存先のセッション</b></div>
+      <div class="turn"><b id="save-title">保存先のセッション</b></div>
       <button type="button" data-close="save">閉じる</button>
     </div>
     <div class="save-list" id="save-list"></div>
@@ -666,6 +690,21 @@
     <div class="row">
       <span class="label">名前</span>
       <input type="text" id="sess-name" placeholder="店名・大会名など（なくてもOK）" aria-label="セッションの名前">
+    </div>
+    <!-- 「新しく始める」を押したときだけ出る：日付と名前を入れて始める -->
+    <div class="save-new" id="sess-form" hidden>
+      <div class="row">
+        <span class="label">日付</span>
+        <input type="date" id="sf-date" aria-label="新しいセッションの日付">
+      </div>
+      <div class="row">
+        <span class="label">名前</span>
+        <input type="text" id="sf-name" placeholder="店名・大会名など（なくてもOK）" aria-label="新しいセッションの名前">
+      </div>
+      <div class="row">
+        <button type="button" id="sf-ok" class="primary">この日付・名前で始める</button>
+        <button type="button" id="sf-cancel">やめる</button>
+      </div>
     </div>
     <p class="hint" id="sess-note"></p>
     <div class="row">
@@ -765,6 +804,9 @@ const state = {
   editIdx: null,      // 詳しい履歴で、額を入れ直しているアクションの番号
   editMsg: '',        // 額を入れ直すときの注意メッセージ
   saveTarget: null,   // 「保存先を選んで保存」で選んでいるセッション（'new'＝新しいセッション）
+  saveMode: 'save',   // そのポップアップの使いみち：'save'（保存して次のハンドへ）/'move'（選んだハンドを移す）
+  selecting: false,   // 履歴で「選んで移す」をしているか
+  sessForm: false,    // シチュエーションで「新しく始める」の入力欄を開いているか
 };
 
 // 短く書くための道具
@@ -1278,11 +1320,20 @@ function saveSessions() {
 const sessionById = id => sessions.find(s => s.id === id);
 const handsOf = id => history.filter(h => h.sessionId === id);
 
-// 新しいセッションを始める（ハンドが1つもない古いセッションは消しておく）
-function newSession() {
+// 名無しフォルダ（日付も名前もない、いつでもある保存先。1つだけ）
+const NONE = 'none';
+if (!sessionById(NONE)) sessions.push({ id: NONE, day: null, date: '', name: '' });
+
+// ハンドが1つもないセッションを消す（名無しフォルダと今のセッションは残す）
+function pruneSessions() {
+  sessions = sessions.filter(s => s.id === NONE || s.id === activeSessionId || handsOf(s.id).length);
+}
+
+// 新しいセッションを始める（date・name：日付と名前。省略したら今日・名前なし）
+function newSession(date = sessionDay(), name = '') {
   const day = sessionDay();
-  sessions = sessions.filter(s => handsOf(s.id).length);
-  const s = { id: 's' + Date.now(), day, date: day, name: '' };
+  sessions = sessions.filter(s => s.id === NONE || handsOf(s.id).length);  // ハンドのない古いセッションは消しておく
+  const s = { id: 's' + Date.now(), day, date, name };
   sessions.unshift(s);
   activeSessionId = s.id;
   pinDay = null;
@@ -1318,8 +1369,9 @@ function assignSessions(list) {
 }
 if (assignSessions(history)) { saveJSON('history', history); saveSessions(); }
 
-// 表示用：'2026-09-25' → '9/25（金）'
+// 表示用：'2026-09-25' → '9/25（金）'（日付なし＝名無しフォルダ）
 function dateLabel(date) {
+  if (!date) return '名無し';
   const [y, m, d] = date.split('-').map(Number);
   const w = '日月火水木金土'[new Date(y, m - 1, d).getDay()];
   return `${m}/${d}（${w}）`;
@@ -1333,7 +1385,7 @@ const numbered = id => handsOf(id).reverse().map((h, i) => ({ h, no: i + 1 }));
 function sessionText(id) {
   const s = sessionById(id);
   const list = numbered(id);
-  const head = `■ ${s.date.replace(/-/g, '/')}${s.name ? ' ' + s.name : ''}（${list.length}ハンド）`;
+  const head = `■ ${s.date ? s.date.replace(/-/g, '/') : '名無し'}${s.name ? ' ' + s.name : ''}（${list.length}ハンド）`;
   return [head, ...list.map(({ h, no }) => `#${no} ${timeLabel(h.savedAt)}\n${h.text}`)].join('\n\n');
 }
 
@@ -1470,8 +1522,8 @@ function deleteSession(id) {
   const n = handsOf(id).length;
   if (!confirm(`${dateLabel(s.date)}${s.name ? ' ' + s.name : ''} の ${n}ハンドを、すべて削除しますか？\n（元に戻せません。心配なときは、先に「バックアップ用データをコピー」をしておいてください）`)) return;
   history = history.filter(h => h.sessionId !== id);
-  sessions = sessions.filter(x => x.id !== id);
-  if (activeSessionId === id) activeSessionId = null;
+  sessions = sessions.filter(x => x.id !== id || x.id === NONE);  // 名無しフォルダは、中身だけ消してフォルダは残す
+  if (activeSessionId === id && id !== NONE) activeSessionId = null;
   saveJSON('history', history);
   saveSessions();
   renderHistory();
@@ -1487,7 +1539,12 @@ function renderHistory() {
       ? `${history.length}件（このスマホのブラウザの中だけに保存されます。閲覧データを消すと消えます）`
       : 'まだありません。「新しいハンド」を押すと、今のハンドがここに保存されます。';
 
-  // セッションごとにまとめる（日付の新しいセッションが上。同じ日付なら、新しいハンドがある方が上）
+  // 「選んで移す」のボタン（選んでいる間は、下の帯を使う）
+  $('sel-row').hidden = !history.length || state.selecting;
+  $('sel-bar').hidden = !(state.selecting && state.view === 'history');
+  updateSelCount();
+
+  // セッションごとにまとめる（日付の新しいセッションが上。同じ日付なら、新しいハンドがある方が上。名無しは一番下）
   const ids = [...new Set(history.map(h => h.sessionId))].filter(id => sessionById(id))
     .map((id, i) => ({ id, i, date: sessionById(id).date }))
     .sort((a, b) => (a.date === b.date ? a.i - b.i : a.date < b.date ? 1 : -1))
@@ -1495,13 +1552,17 @@ function renderHistory() {
   $('history').innerHTML = ids.map((id, gi) => {
     const s = sessionById(id);
     const list = numbered(id).reverse();  // 画面では新しい順に出す
-    return `<details class="sess"${gi === 0 ? ' open' : ''}>
+    // 選んでいる間は、全部のセッションを開いて、ボタンは「全部選ぶ」だけにする
+    const buttons = state.selecting
+      ? `<button type="button" data-sselall="${id}">このセッションを全部選ぶ</button>`
+      : `<button type="button" class="primary" data-scopy="${id}">まとめてコピー</button>
+          ${id === NONE ? '' : `<button type="button" data-sname="${id}">名前を変える</button>`}
+          <button type="button" class="danger" data-sdel="${id}">${id === NONE ? '中身を全部削除' : 'このセッションを削除'}</button>`;
+    return `<details class="sess"${gi === 0 || state.selecting ? ' open' : ''}>
       <summary><span class="sess-date">${dateLabel(s.date)}</span><span class="sess-name">${escapeHTML(s.name)}</span><span class="sess-count">${list.length}ハンド</span></summary>
       <div class="sess-in">
         <div class="row">
-          <button type="button" class="primary" data-scopy="${id}">まとめてコピー</button>
-          <button type="button" data-sname="${id}">名前を変える</button>
-          <button type="button" class="danger" data-sdel="${id}">このセッションを削除</button>
+          ${buttons}
           <span class="copy-msg" id="sess-msg-${id}"></span>
         </div>
         <pre id="sess-pre-${id}" hidden></pre>
@@ -1514,8 +1575,13 @@ function renderHistory() {
 // 履歴の1ハンド分
 function histItem(h, no) {
   const cards = h.hero.map(c => c ? `<span class="${c[1]}">${c[0]}${SUIT_MARK[c[1]]}</span>` : '?').join('');
+  const line = `<span class="hist-time">#${no}　${timeLabel(h.savedAt)}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${h.pot == null ? '?' : fmt(h.pot)}</span>`;
+  // 「選んで移す」の間は、チェック欄つきの1行だけにする
+  if (state.selecting) {
+    return `<label class="hist-item hist-sel"><input type="checkbox" data-hsel="${h.id}"${selected.has(String(h.id)) ? ' checked' : ''}>${line}</label>`;
+  }
   return `<details class="hist-item">
-    <summary><span class="hist-time">#${no}　${timeLabel(h.savedAt)}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${h.pot == null ? '?' : fmt(h.pot)}</span></summary>
+    <summary>${line}</summary>
     <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
     <div class="row">
       <button type="button" class="primary" data-hedit="${h.id}">開いて直す</button>
@@ -1531,10 +1597,51 @@ function histItem(h, no) {
 // （入力中の欄は書き換えない：文字を打っている途中でカーソルが飛ばないように）
 function renderSession() {
   const s = activeSession();
+  const none = s.id === NONE;  // 名無しフォルダは、日付・名前を付けられない
+  $('sess-date').disabled = none;
+  $('sess-name').disabled = none;
+  $('sess-name').placeholder = none ? '名無し（名前は付けられません）' : '店名・大会名など（なくてもOK）';
   if (document.activeElement !== $('sess-date')) $('sess-date').value = s.date;
   if (document.activeElement !== $('sess-name')) $('sess-name').value = s.name;
   const n = handsOf(s.id).length;
   $('sess-note').textContent = `このセッションのハンド：${n}件。日付が変わると（朝${DAY_START}時）、自動で新しいセッションになります。`;
+  // 「新しく始める」の入力欄
+  $('sess-form').hidden = !state.sessForm;
+  $('sess-new').hidden = state.sessForm;
+}
+
+// 入力画面の1行目に出す、今のセッションの短い名前（名前がなければ日付）
+function sessionShort() {
+  const s = activeSession();
+  if (s.id === NONE) return '名無し';
+  if (s.name) return s.name;
+  const [, m, d] = s.date.split('-').map(Number);
+  return `${m}/${d}`;
+}
+
+// --------------------------------------------
+// 選んで移す（履歴のハンドを、別のセッションへ）
+// --------------------------------------------
+const selected = new Set();  // 選んでいるハンドの番号（id）
+
+function updateSelCount() {
+  $('sel-count').textContent = `${selected.size}件を選択中`;
+  $('sel-move').disabled = !selected.size;
+}
+
+// 選んだハンドを、選んだセッションへ移す
+function moveSelected(id) {
+  history.forEach(h => { if (selected.has(String(h.id))) h.sessionId = id; });
+  endSelect();
+  pruneSessions();  // 空になったセッションは消す
+  saveJSON('history', history);
+  saveSessions();
+  renderHistory();
+}
+
+function endSelect() {
+  state.selecting = false;
+  selected.clear();
 }
 
 function render() {
@@ -1546,6 +1653,7 @@ function render() {
   $('settings-pop').hidden = state.popup !== 'settings';
   $('log-pop').hidden = state.popup !== 'log';
   $('save-pop').hidden = state.popup !== 'save';
+  $('sel-bar').hidden = !(state.selecting && state.view === 'history');
   // 履歴のハンドを直しているときは、帯を出して「新しいハンド」は隠す
   $('edit-bar').hidden = !editing;
   $('new-hand').hidden = !!editing;
@@ -1555,7 +1663,8 @@ function render() {
 
   // ① シチュエーション（1行）とポット
   const anteLabel = { none: 'アンティなし', bb: 'BBアンティ', all: '各自アンティ' }[state.anteType];
-  $('summary').textContent = `${state.sb}/${state.bb} ・ ES${esKnown() ? state.es : '?'}BB ・ ${state.seats}人 ・ ${anteLabel}`;
+  // 先頭に今のセッション（どのセッションに保存されるか、入力中にわかるように）
+  $('summary').innerHTML = `<b>${escapeHTML(sessionShort())}</b> ・ ${state.sb}/${state.bb} ・ ES${esKnown() ? state.es : '?'}BB ・ ${state.seats}人 ・ ${anteLabel}`;
   $('pot').textContent = potLabel(sim.pot, sim.unknown);
   $('street').textContent =
     sim.alive.length <= 1 ? '終了' :
@@ -2035,40 +2144,57 @@ async function copyAndNext() {
   render();
 }
 
-// 「保存先を選んで保存」のポップアップを開く
-function openSave() {
+// セッションを選ぶポップアップを開く
+//   mode：'save'＝保存先を選んで保存して次のハンドへ、'move'＝履歴で選んだハンドの移す先を選ぶ
+function openSave(mode = 'save') {
   state.popup = 'save';
-  state.saveTarget = activeSession().id;  // はじめは今のセッションを選んでおく
+  state.saveMode = mode;
+  state.saveTarget = mode === 'save' ? activeSession().id : null;  // 保存のときは、はじめは今のセッションを選んでおく
   $('save-date').value = sessionDay();
   $('save-name').value = '';
   $('save-keep').checked = true;
   $('save-msg').textContent = '';
 }
 
-// 保存先の候補（日付の新しい順に8つまで。今のセッションは必ず入れる）
+// セッションの候補（日付の新しい順に8つまで。今のセッションと名無しは必ず入れる）
 function renderSave() {
+  const move = state.saveMode === 'move';
   const cur = activeSession().id;
-  const list = sessions
-    .filter(s => s.id === cur || handsOf(s.id).length)
+  const dated = sessions
+    .filter(s => s.id !== NONE && (s.id === cur || handsOf(s.id).length))
     .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
     .slice(0, 8);
+  const list = [...dated, sessionById(NONE)];
+  $('save-title').textContent = move ? '移す先のセッション' : '保存先のセッション';
   $('save-list').innerHTML = list.map(s => `
     <button type="button" data-starget="${s.id}" class="${state.saveTarget === s.id ? 'on' : ''}">
-      <b>${dateLabel(s.date)}</b><span>${escapeHTML(s.name)}</span><small>${s.id === cur ? '今のセッション・' : ''}${handsOf(s.id).length}ハンド</small>
+      <b>${s.id === NONE ? '名無し' : dateLabel(s.date)}</b><span>${s.id === NONE ? '（日付・名前なし）' : escapeHTML(s.name)}</span><small>${s.id === cur ? '今のセッション・' : ''}${handsOf(s.id).length}ハンド</small>
     </button>`).join('') +
     `<button type="button" data-starget="new" class="${state.saveTarget === 'new' ? 'on' : ''}"><b>＋ 新しいセッション</b></button>`;
   $('save-new').hidden = state.saveTarget !== 'new';
+  // 移すときは「このあとも」は使わない
+  $('save-keep').parentElement.hidden = move;
+  $('save-ok').textContent = move ? `${selected.size}件をここへ移す` : '保存して次のハンドへ';
+  $('save-ok').disabled = !state.saveTarget;
 }
 
-// 選んだセッションに保存して、次のハンドへ
+// 選んだセッションに保存して次のハンドへ（移すときは、選んだハンドを移す）
 function confirmSave() {
+  const move = state.saveMode === 'move';
   let id = state.saveTarget;
+  if (!id) return;
   if (id === 'new') {
     const date = $('save-date').value;
-    if (!date) { $('save-msg').textContent = '日付を入れてください。'; return; }
-    const s = { id: 's' + Date.now(), day: sessionDay(), date, name: $('save-name').value.trim() };
+    if (!date) { $('save-msg').textContent = '日付を入れてください（日付なしにしたいときは「名無し」を選んでください）。'; return; }
+    // day：日付が変わったときの自動の区切りに使う。移すときに作ったセッションは、自動では使わない
+    const s = { id: 's' + Date.now(), day: move ? null : sessionDay(), date, name: $('save-name').value.trim() };
     sessions.unshift(s);
     id = s.id;
+  }
+  if (move) {
+    state.popup = null;
+    moveSelected(id);
+    return;
   }
   // 「このあとも」なら、今日のうちはこのセッションを今のセッションにする
   if ($('save-keep').checked) { activeSessionId = id; pinDay = sessionDay(); }
@@ -2138,12 +2264,32 @@ document.addEventListener('click', e => {
   if (b.id === 'backup-copy') { copyString(backupText(), 'backup-pre', 'backup-msg'); return; }
   if (b.id === 'restore-btn') { restoreBackup(); return; }
 
-  if (d.view) state.view = d.view;                         // 画面の切り替え
-  else if (b.id === 'situ-open') state.popup = 'settings';  // シチュエーションの変更
+  if (d.view) {
+    // 画面の切り替え（履歴から離れたら「選んで移す」はやめる）
+    state.view = d.view;
+    if (d.view !== 'history' && state.selecting) { endSelect(); renderHistory(); }
+  }
+  else if (b.id === 'situ-open') { state.popup = 'settings'; state.sessForm = false; }  // シチュエーションの変更
   else if (b.id === 'sess-new') {
-    // 同じ日に分けたいとき用（日付が変わったときは自動で新しくなる）
-    if (!confirm('新しいセッションを始めますか？\nこれから保存するハンドは、新しいセッションに入ります。')) return;
-    newSession();
+    // 日付と名前を入れて始める欄を開く（日付が変わったときは自動で新しくなる）
+    state.sessForm = true;
+    $('sf-date').value = sessionDay();
+    $('sf-name').value = '';
+  }
+  else if (b.id === 'sf-cancel') state.sessForm = false;
+  else if (b.id === 'sf-ok') {
+    newSession($('sf-date').value || sessionDay(), $('sf-name').value.trim());
+    state.sessForm = false;
+    renderHistory();
+  }
+  else if (b.id === 'sel-start') { state.selecting = true; selected.clear(); renderHistory(); }
+  else if (b.id === 'sel-cancel') { endSelect(); renderHistory(); }
+  else if (b.id === 'sel-move') openSave('move');
+  else if (d.sselall) {
+    // そのセッションのハンドを全部選ぶ（全部選んであれば、全部外す）
+    const ids = handsOf(d.sselall).map(h => String(h.id));
+    const all = ids.every(id => selected.has(id));
+    ids.forEach(id => (all ? selected.delete(id) : selected.add(id)));
     renderHistory();
   }
   else if (b.id === 'hero-pos-btn') {
@@ -2225,16 +2371,29 @@ $('bb').addEventListener('input', e => {
 });
 $('ante-amt').addEventListener('input', e => { state.ante = +e.target.value || 0; render(); });
 // セッションの日付と名前（今のセッションを直す）
+// （名無しフォルダのときは、日付・名前を付けない）
 $('sess-date').addEventListener('change', e => {
-  if (!e.target.value) return;
-  activeSession().date = e.target.value;
+  const s = activeSession();
+  if (!e.target.value || s.id === NONE) return;
+  s.date = e.target.value;
   saveSessions();
   renderHistory();
+  render();
 });
 $('sess-name').addEventListener('input', e => {
-  activeSession().name = e.target.value.trim();
+  const s = activeSession();
+  if (s.id === NONE) return;
+  s.name = e.target.value.trim();
   saveSessions();
   renderHistory();
+  render();  // 入力画面の1行目のセッション名も変える
+});
+// 「選んで移す」のチェック欄
+document.addEventListener('change', e => {
+  const id = e.target.dataset && e.target.dataset.hsel;
+  if (!id) return;
+  if (e.target.checked) selected.add(id); else selected.delete(id);
+  updateSelCount();
 });
 $('es').addEventListener('input', e => { state.es = +e.target.value || 0; render(); });
 // HEROの手札を選ぶ画面の有効スタック（卓の設定の欄と同じものを変える）
