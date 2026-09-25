@@ -116,7 +116,8 @@
 
   /* ④ アクション履歴（短い表示。残りの高さを使い、あふれたらその中でスクロール） */
   .log-mini {
-    flex: 1 1 auto; min-height: 56px; overflow-y: auto; cursor: pointer;
+    flex: 0 1 auto; min-height: 56px; max-height: 190px;  /* 中身に合わせた高さ（最大でストリート4つ分） */
+    overflow-y: auto; cursor: pointer;
     background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px;
   }
   .log-mini-head { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: .08em; }
@@ -177,6 +178,9 @@
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); min-width: 3.2em; }
   .seg button:last-child { border-right: 0; }
+  /* 人数（2〜9人）は8つ並ぶので、横いっぱいに均等に並べる */
+  .seats-seg { display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; }
+  .seats-seg button { min-width: 0; padding: 0; font-size: 14px; }
 
   input[type="number"] {
     font-family: var(--font-num); font-size: 18px; font-variant-numeric: tabular-nums;
@@ -225,6 +229,12 @@
   .tag.aggr { background: var(--aggr); border-color: var(--aggr); color: var(--aggr-ink); }
   .act .amt { font-family: var(--font-num); font-size: 16px; }
   .empty-log { margin: 0; font-size: 13px; color: var(--muted); }
+  /* 額を入れ直すボタンと欄（詳しい履歴） */
+  .act .edit-amt { margin-left: auto; min-height: 30px; padding: 0 10px; font-size: 12.5px; }
+  .act .edit-amt.need { color: var(--warn); border-color: var(--warn); font-weight: 700; }
+  .act .edit-amt.on { color: var(--surface); border-color: var(--felt); }  /* 今、額を入れているもの */
+  .edit-box { display: grid; gap: 6px; padding: 8px; border: 2px solid var(--felt); border-radius: 10px; }
+  .log-mini .need-amt { color: var(--warn); font-weight: 700; font-size: 12.5px; }
 
   /* 記録テキスト（コピーする部分） */
   pre {
@@ -322,6 +332,8 @@
     overflow-y: auto; overscroll-behavior: contain;
     background: var(--surface); border-radius: 14px; padding: 10px 8px 12px;
     display: grid; gap: 10px; box-shadow: 0 10px 30px rgb(0 0 0 / .25);
+    grid-template-columns: minmax(0, 1fr);  /* 中身（入力欄など）がポップアップの幅を広げないように */
+    overflow-x: hidden;
   }
   .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .modal-top button { min-height: 34px; font-size: 13px; flex-shrink: 0; }
@@ -399,7 +411,7 @@
 
   <!-- ④ アクション履歴（短く表示。押すと詳しい履歴のポップアップ） -->
   <div class="log-mini" id="log-open" role="button" tabindex="0" aria-label="アクション履歴を詳しく見る">
-    <div class="log-mini-head">アクション履歴<span>詳しく ▸</span></div>
+    <div class="log-mini-head">アクション履歴<span id="log-mini-link">詳しく ▸</span></div>
     <div class="log-mini-body" id="log-mini"></div>
   </div>
 
@@ -505,6 +517,17 @@
       <div class="turn"><b>アクション履歴</b></div>
       <button type="button" data-close="log">閉じる</button>
     </div>
+    <p class="hint" id="log-hint"></p>
+    <!-- 額を入れ直す欄（ベット・レイズの「額を入れる」「直す」を押したときだけ出る） -->
+    <div class="edit-box" id="edit-box" hidden>
+      <div class="turn" id="edit-title"></div>
+      <div class="amount-row">
+        <input type="number" inputmode="numeric" id="edit-amount" aria-label="入れ直す額">
+        <span class="bb" id="edit-bb"></span>
+        <button type="button" id="edit-ok" class="primary">決定</button>
+      </div>
+      <div class="msg" id="edit-msg"></div>
+    </div>
     <div class="log" id="log"></div>
   </div>
 </div>
@@ -551,8 +574,11 @@
     </div>
     <div class="row">
       <span class="label">人数</span>
-      <div class="seg">
+      <div class="seg seats-seg">
         <button type="button" data-seats="2">2人</button>
+        <button type="button" data-seats="3">3人</button>
+        <button type="button" data-seats="4">4人</button>
+        <button type="button" data-seats="5">5人</button>
         <button type="button" data-seats="6">6人</button>
         <button type="button" data-seats="7">7人</button>
         <button type="button" data-seats="8">8人</button>
@@ -583,7 +609,7 @@
       <input type="number" inputmode="decimal" id="es" value="35" aria-label="有効スタック（BB）">
       <span>BB</span>
     </div>
-    <p class="hint">HU は人数の「2人」を選んでください。有効スタックは、HEROの手札を選ぶ画面でも変えられます。</p>
+    <p class="hint">HU は人数の「2人」を選んでください。有効スタックは空欄にしておいて、あとで入れても大丈夫です（HEROの手札を選ぶ画面でも変えられます）。</p>
     <button type="button" class="primary to-board" data-close="settings">OK</button>
   </div>
 </div>
@@ -596,7 +622,10 @@
 // 人数ごとのポジション（プリフロップで打つ順番）
 const POSITIONS = {
   2: ['SB', 'BB'],  // HU：SBの人がボタンを兼ねる
-  6: ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
+  3: ['BTN', 'SB', 'BB'],                  // 3〜5人は、ボタンから後ろに CO → HJ と数える
+  4: ['CO', 'BTN', 'SB', 'BB'],
+  5: ['HJ', 'CO', 'BTN', 'SB', 'BB'],
+  6:['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
   7: ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
   8: ['UTG', 'UTG1', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
   9: ['UTG', 'UTG1', 'UTG2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
@@ -637,6 +666,8 @@ const state = {
   padOpen: true,      // （前の版の名残。今は使っていない）
   view: 'input',      // 表示中の画面：'input'（入力）/'text'（テキスト）/'history'（履歴）
   popup: null,        // 開いているポップアップ：'settings'（シチュエーション）/'log'（アクション履歴）。カード選択は pick で決まる
+  editIdx: null,      // 詳しい履歴で、額を入れ直しているアクションの番号
+  editMsg: '',        // 額を入れ直すときの注意メッセージ
 };
 
 // 短く書くための道具
@@ -714,10 +745,15 @@ function nextSlot(slot) {
 // 4. 計算：入力したアクションを最初から順に再生して、
 //    ポット・ストリート・次に打つ人などを求める
 // ============================================
-function simulate() {
+// 有効スタックが入っているか（空欄＝あとで入れる）
+const esKnown = () => state.es > 0;
+
+// actions：再生するアクション（ふだんは全部。額を後から直すときは、その手前までを再生する）
+function simulate(actions = state.actions) {
   const list = POSITIONS[state.seats];
   const n = list.length;
-  const stack = state.es * state.bb;  // 全員のスタックを有効スタックとみなす
+  // 全員のスタックを有効スタックとみなす（有効スタックが空欄のときは、上限なしとして計算する）
+  const stack = esKnown() ? state.es * state.bb : Infinity;
   // put＝今のストリートで出している額、total＝前のストリートまでに出した額
   const players = list.map(pos => ({ pos, folded: false, allin: false, acted: false, put: 0, total: 0 }));
   const byPos = pos => players.find(p => p.pos === pos);
@@ -733,7 +769,11 @@ function simulate() {
   let street = 0;              // 今のストリート
   let currentBet = state.bb;   // 今のストリートで、いくらまで賭けられているか
   let next = 0;                // 次に打つ人の番号（プリフロップはUTG=0から）
+  let raiseBy = state.bb;      // 最後のレイズ幅（ミニマムレイズ＝今のベット額＋この額。はじめは1BB）
+  let unknown = false;         // 額が未入力のベット・レイズが、これまでにあったか（あればポットは「?」）
+  let betUnknown = false;      // 今のベット額が、額未入力のベット・レイズによるものか
   const potAt = [];            // 各ストリート開始時のポット
+  const potUnknown = [];       // 各ストリート開始時のポットが「?」か
   const log = [];              // 履歴（自動のチェック・フォールドも含む）
 
   const pot = () => anteTotal + players.reduce((sum, p) => sum + p.total + p.put, 0);
@@ -760,12 +800,14 @@ function simulate() {
   const closeStreet = () => {
     players.forEach(p => { p.total += p.put; p.put = 0; p.acted = false; });
     currentBet = 0;
+    raiseBy = state.bb;          // フロップ以降のミニマムベットは1BB
+    betUnknown = false;
     street++;
     next = n === 2 ? 1 : n - 2;  // フロップ以降はSBから（HUはBBから）
-    if (street <= 3) potAt[street] = pot();
+    if (street <= 3) { potAt[street] = pot(); potUnknown[street] = unknown; }
   };
 
-  for (const a of state.actions) {
+  for (const [idx, a] of actions.entries()) {
     while (street < a.street) closeStreet();
     const target = list.indexOf(a.pos);
 
@@ -781,15 +823,23 @@ function simulate() {
     const maxPut = stack - p.total;  // このストリートで出せる最大額
     if (a.type === 'f') p.folded = true;
     if (a.type === 'c') p.put = Math.min(currentBet, maxPut);
+    const noAmount = (a.type === 'b' || a.type === 'r') && !(a.to > 0);  // 額が未入力のベット・レイズ
     if (a.type === 'b' || a.type === 'r') {
-      p.put = Math.min(a.to, maxPut);
+      // 額が未入力のときは、計算のためだけにミニマムの額を仮に入れておく（ポットは「?」表示にする）
+      const to = noAmount ? currentBet + raiseBy : a.to;
+      p.put = Math.min(to, maxPut);
+      if (p.put - currentBet >= raiseBy) raiseBy = p.put - currentBet;  // レイズ幅を更新（足りないオールインは更新しない）
       currentBet = Math.max(currentBet, p.put);
+      if (noAmount) unknown = true;
+      betUnknown = noAmount;
       // ベット・レイズされたら、他の人はもう一度打つ必要がある
       players.forEach(q => { if (q !== p) q.acted = false; });
     }
     if (p.put >= maxPut) p.allin = true;
     p.acted = true;
-    log.push({ ...a, to: p.put });
+    // コールも、額未入力のベットに対してなら額は「?」
+    const amountUnknown = noAmount || (a.type === 'c' && betUnknown);
+    log.push({ ...a, to: p.put, idx, unknown: amountUnknown });
     next = (target + 1) % n;
   }
 
@@ -801,8 +851,13 @@ function simulate() {
   return {
     list, players, stack, street, currentBet, pot: pot(), potAt, log, done,
     alive: alivePlayers, waiting: done ? [] : waitingList(),
+    minTo: currentBet === 0 ? state.bb : currentBet + raiseBy,  // ベット・レイズできる最小の額（ミニマム）
+    unknown, potUnknown, betUnknown,
   };
 }
+
+// ポットの表示（額が未入力のベットがあれば「?」）
+const potLabel = (value, isUnknown) => (isUnknown ? '?' : fmt(value));
 
 // 今「誰が」で選ばれている人（選んでいなければ順番どおりの人）
 function currentActor(sim) {
@@ -822,19 +877,26 @@ function presets(sim) {
   const bb = state.bb, cb = sim.currentBet;
   const p = sim.players.find(q => q.pos === currentActor(sim));
   const allin = sim.stack - p.total;
-  if (sim.street === 0 && cb === bb) {
+  let list;
+  if (sim.street === 0 && cb === bb && !sim.unknown) {
     // プリフロップで誰もレイズしていない（オープン）
-    return [['2bb', 2 * bb], ['2.2bb', 2.2 * bb], ['2.5bb', 2.5 * bb], ['3bb', 3 * bb], ['オールイン', allin]];
-  }
-  if (cb === 0) {
+    list = [['2bb', 2 * bb], ['2.2bb', 2.2 * bb], ['2.5bb', 2.5 * bb], ['3bb', 3 * bb]];
+  } else if (sim.unknown) {
+    // 額が未入力のベットがあると、ポットや今の額がわからないので、早押しの額は出さない
+    list = [];
+  } else if (cb === 0) {
     // フロップ以降で、まだ誰もベットしていない
     const pot = sim.pot;
-    return [['1/3', roundChip(pot / 3)], ['1/2', roundChip(pot / 2)], ['2/3', roundChip(pot * 2 / 3)], ['ポット', pot], ['オールイン', allin]];
+    list = [['1/3', roundChip(pot / 3)], ['1/2', roundChip(pot / 2)], ['2/3', roundChip(pot * 2 / 3)], ['ポット', pot]];
+  } else {
+    // 誰かがベット・レイズしている
+    const potRaise = cb + (sim.pot + (cb - p.put));  // ポットサイズレイズ
+    list = [['×2.5', roundChip(2.5 * cb)], ['×3', 3 * cb], ['×4', 4 * cb], ['ポット', potRaise]];
   }
-  // 誰かがベット・レイズしている
-  const potRaise = cb + (sim.pot + (cb - p.put));  // ポットサイズレイズ
-  return [['×2.5', roundChip(2.5 * cb)], ['×3', 3 * cb], ['×4', 4 * cb], ['ポット', potRaise], ['オールイン', allin]]
-    .map(([label, to]) => [label, Math.min(to, allin)]);
+  // ミニマムより小さい額にはしない。有効スタックが入っていればオールインも出す
+  list = list.map(([label, to]) => [label, Math.min(Math.max(to, sim.minTo), allin)]);
+  if (allin !== Infinity) list.push(['オールイン', allin]);
+  return list;
 }
 
 // ============================================
@@ -854,6 +916,7 @@ function handText(a, b) {
 }
 
 function tokenOf(a) {
+  if ((a.type === 'r' || a.type === 'b') && a.unknown) return a.type;  // 額が未入力：r / b だけ書く
   if (a.type === 'r' && a.street === 0) return `${bbOf(a.to)}bb r`;  // プリフロップのレイズは bb 表記
   if (a.type === 'r' || a.type === 'b') return `${a.type} ${Math.round(a.to)}`;  // 例：b 13000
   return a.type;                                                    // f / x / c
@@ -878,14 +941,15 @@ function streetLines(sim, s) {
 
 function buildText(sim) {
   const lines = [];
-  lines.push(`${state.sb}/${state.bb}(ES${state.es}BB)`);
+  lines.push(`${state.sb}/${state.bb}(ES${esKnown() ? state.es : '?'}BB)`);  // 有効スタックが空欄なら ES?BB
   lines.push(`${state.heroPos || '??'} HERO ${handText(...state.hero)}`);
   lines.push('');
 
   for (let s = 0; s <= 3; s++) {
     if (s > 0) {
       if (sim.potAt[s] === undefined) break;  // まだそのストリートに進んでいない
-      lines.push('', `${STREET_TEXT[s]}(${Math.round(sim.potAt[s])})`, boardText(s));
+      const pot = sim.potUnknown[s] ? '?' : Math.round(sim.potAt[s]);  // 額が未入力のベットがあれば flop(?)
+      lines.push('', `${STREET_TEXT[s]}(${pot})`, boardText(s));
     }
     // 同じ人のアクションは1行にまとめる（例：BB x/r 40000）
     streetLines(sim, s).forEach(l => lines.push(`${l.pos} ${l.text}`));
@@ -965,6 +1029,8 @@ function buildGTOW(sim) {
   if (!state.hero.every(known)) missing.push('HEROの手札（色も）');
   if (!boardIdx.every(i => known(state.board[i]))) missing.push('ボード（色も）');
   if (!sim.done) missing.push('ハンドの最後までのアクション');
+  if (!esKnown()) missing.push('有効スタック');
+  if (sim.unknown) missing.push('ベット・レイズの額（入力の画面の「詳しく」から入れられます）');
   if (missing.length) return { ok: false, text: `作るには、次を入力してください：${missing.join('、')}` };
 
   const list = sim.list, n = list.length, stack = sim.stack;
@@ -1103,7 +1169,7 @@ function restoreCurrent() {
   $('sb').value = state.sb;
   $('bb').value = state.bb;
   $('ante-amt').value = state.ante;
-  $('es').value = state.es;
+  $('es').value = esKnown() ? state.es : '';  // 空欄（あとで入れる）のときは空欄のまま
   // 手札がそろっていれば、カード選択は閉じておく
   const heroDone = state.heroPos && state.hero.every(c => c);
   state.pick = heroDone ? null : (state.hero[0] ? 'h1' : 'h0');
@@ -1123,7 +1189,7 @@ function saveToHistory() {
   const g = buildGTOW(sim);
   const data = {};
   SAVE_FIELDS.forEach(k => { data[k] = JSON.parse(JSON.stringify(state[k])); });
-  const pot = finalPot(sim);
+  const pot = sim.unknown ? null : finalPot(sim);  // 額が未入力なら「?」（null）
   history.unshift({
     id: Date.now(),
     savedAt: new Date().toISOString(),
@@ -1154,7 +1220,7 @@ function renderHistory() {
     const time = `${two(t.getMonth() + 1)}/${two(t.getDate())} ${two(t.getHours())}:${two(t.getMinutes())}`;
     const cards = h.hero.map(c => c ? `<span class="${c[1]}">${c[0]}${SUIT_MARK[c[1]]}</span>` : '?').join('');
     return `<details class="hist-item">
-      <summary><span class="hist-time">${time}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${fmt(h.pot)}</span></summary>
+      <summary><span class="hist-time">${time}</span><span class="hist-pos">${h.heroPos || '??'}</span><span class="hist-hand">${cards}</span><span class="hist-pot">${h.pot == null ? '?' : fmt(h.pot)}</span></summary>
       <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
       <div class="row">
         <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
@@ -1177,8 +1243,8 @@ function render() {
 
   // ① シチュエーション（1行）とポット
   const anteLabel = { none: 'アンティなし', bb: 'BBアンティ', all: '各自アンティ' }[state.anteType];
-  $('summary').textContent = `${state.sb}/${state.bb} ・ ES${state.es}BB ・ ${state.seats}人 ・ ${anteLabel}`;
-  $('pot').textContent = fmt(sim.pot);
+  $('summary').textContent = `${state.sb}/${state.bb} ・ ES${esKnown() ? state.es : '?'}BB ・ ${state.seats}人 ・ ${anteLabel}`;
+  $('pot').textContent = potLabel(sim.pot, sim.unknown);
   $('street').textContent =
     sim.alive.length <= 1 ? '終了' :
     sim.street === 4 ? 'SHOWDOWN' : STREET_LABEL[sim.street];
@@ -1194,6 +1260,7 @@ function render() {
   renderShowdown(sim);
   renderLogMini(sim);
   renderLog(sim);
+  renderEdit(sim);
   renderPad(sim);
   renderSheet();
   $('output').textContent = buildText(sim);
@@ -1245,6 +1312,8 @@ function renderLogMini(sim) {
   const el = $('log-mini');
   if (!sim.log.length) {
     el.innerHTML = '<p class="empty-log">まだありません。下の「誰が」→「何を」の順に押してください。</p>';
+    $('log-mini-link').textContent = '詳しく ▸';
+    $('log-mini-link').classList.remove('need-amt');
     return;
   }
   const short = ['PF', 'FLOP', 'TURN', 'RIVER'];
@@ -1254,10 +1323,13 @@ function renderLogMini(sim) {
     const parts = streetLines(sim, s)
       .map(l => `<span><span class="who${l.pos === state.heroPos ? ' hero' : ''}">${l.pos}</span> ${escapeHTML(l.text)}</span>`)
       .join('');
-    const pot = s > 0 ? `<small>${fmt(sim.potAt[s])}</small>` : '';
+    const pot = s > 0 ? `<small>${potLabel(sim.potAt[s], sim.potUnknown[s])}</small>` : '';
     html += `<div class="lm"><b>${short[s]}${pot}</b><span class="parts">${parts}</span></div>`;
   }
   el.innerHTML = html;
+  // 額が未入力のベット・レイズがあれば、赤く知らせる
+  $('log-mini-link').textContent = sim.unknown ? '額が未入力：押して入れる ▸' : '詳しく ▸';
+  $('log-mini-link').classList.toggle('need-amt', sim.unknown);
   // 一番新しいアクションが見えるように、下までスクロールする
   const box = $('log-open');
   box.scrollTop = box.scrollHeight;
@@ -1300,7 +1372,7 @@ function renderLog(sim) {
   let html = '';
   for (let s = 0; s <= Math.min(sim.street, 3); s++) {
     if (s > 0 && sim.potAt[s] === undefined) break;
-    html += `<div class="log-head"><span>${STREET_LABEL[s]}${s > 0 ? `<span class="mini">${miniBoard(s)}</span>` : ''}</span>${s > 0 ? `<b>${fmt(sim.potAt[s])}</b>` : ''}</div>`;
+    html += `<div class="log-head"><span>${STREET_LABEL[s]}${s > 0 ? `<span class="mini">${miniBoard(s)}</span>` : ''}</span>${s > 0 ? `<b>${potLabel(sim.potAt[s], sim.potUnknown[s])}</b>` : ''}</div>`;
 
     // 自動のチェック・フォールドは、続いている分をまとめて1行にする
     let autos = [], autoType = null;
@@ -1319,9 +1391,14 @@ function renderLog(sim) {
       const hero = a.pos === state.heroPos ? ' hero' : '';
       const aggr = a.type === 'r' || a.type === 'b' ? ' aggr' : '';
       const amt =
+        a.unknown ? '?' :
         a.type === 'r' && s === 0 ? `${fmt(a.to)}（${bbOf(a.to)}bb）` :
         a.type === 'r' || a.type === 'b' || a.type === 'c' ? fmt(a.to) : '';
-      html += `<div class="act"><span class="who${hero}">${a.pos}</span><span class="tag${aggr}">${ACT_NAME[a.type]}</span><span class="amt">${amt}</span></div>`;
+      // ベット・レイズは、押すと額を入れ直せる（未入力なら赤い「額を入れる」）
+      const edit = a.type === 'b' || a.type === 'r'
+        ? `<button type="button" class="edit-amt${a.unknown ? ' need' : ''}${state.editIdx === a.idx ? ' on' : ''}" data-edit="${a.idx}">${a.unknown ? '額を入れる' : '直す'}</button>`
+        : '';
+      html += `<div class="act"><span class="who${hero}">${a.pos}</span><span class="tag${aggr}">${ACT_NAME[a.type]}</span><span class="amt">${amt}</span>${edit}</div>`;
     }
     flush();
   }
@@ -1345,7 +1422,7 @@ function renderPad(sim) {
 
   if (sim.done) {
     if (sim.alive.length <= 1) {
-      $('turn').innerHTML = `<b>${sim.alive[0].pos}</b>の勝ち（ポット ${fmt(finalPot(sim))}）`;
+      $('turn').innerHTML = `<b>${sim.alive[0].pos}</b>の勝ち（ポット ${potLabel(finalPot(sim), sim.unknown)}）`;
     } else {
       const boardLeft = state.board.some(c => !c);
       $('turn').innerHTML = boardLeft
@@ -1378,17 +1455,37 @@ function renderPad(sim) {
     b.disabled = !canUse[b.dataset.act];
     b.classList.toggle('pending', b.dataset.act === state.pending);
   });
-  $('a-c').innerHTML = toCall > 0 ? `コール<small>${fmt(toCall)}</small>` : 'コール';
+  // コールの額（額が未入力のベットに対するコールは「?」）
+  $('a-c').innerHTML = toCall > 0 ? `コール<small>${sim.unknown ? '?' : fmt(toCall)}</small>` : 'コール';
 
-  // 額の早押しボタン
-  $('sizes').innerHTML = presets(sim)
+  // 額の早押しボタン（額が未入力のベットがあるときは出さない）
+  const ps = presets(sim);
+  $('sizes').hidden = ps.length === 0;
+  $('sizes').innerHTML = ps
     .map(([label, to]) => `<button type="button" data-to="${Math.round(to)}"${aggrType(sim) ? '' : ' disabled'}>${label}</button>`)
     .join('');
 
   // 額の入力欄は、ベットかレイズができるときはいつでも入力できる
   $('amount').disabled = !aggrType(sim);
   $('ok').disabled = !state.pending;
+  // 額が空欄なら「額なしで決定」（額はあとで、詳しい履歴から入れられる）
+  $('ok').textContent = state.pending && !state.amount ? '額なしで決定' : '決定';
+  $('amount').placeholder = state.pending ? `ミニマム ${fmt(sim.minTo)}` : '';
   $('amount-bb').textContent = state.pending && state.amount ? `= ${bbOf(state.amount)}bb` : '';
+}
+
+// 詳しい履歴のポップアップの、額を入れ直す欄
+function renderEdit(sim) {
+  $('log-hint').textContent = sim.unknown
+    ? '額が「?」のベット・レイズは「額を入れる」を押すと入れられます。コールの額とポットは自動で計算し直します。'
+    : 'ベット・レイズの額は「直す」で入れ直せます。';
+  const a = state.editIdx === null ? null : state.actions[state.editIdx];
+  $('edit-box').hidden = !a;
+  if (!a) return;
+  $('edit-title').innerHTML = `<b>${a.pos}</b> の${ACT_NAME[a.type]}（${STREET_LABEL[a.street]}）の額`;
+  $('edit-msg').textContent = state.editMsg;
+  const v = +$('edit-amount').value;
+  $('edit-bb').textContent = v ? `= ${bbOf(v)}bb` : '';
 }
 
 function renderSheet() {
@@ -1411,7 +1508,7 @@ function renderSheet() {
       .map(p => `<button type="button" data-pos="${p}" class="${p === state.heroPos ? 'on' : ''}">${p}</button>`)
       .join('');
     // 入力中でなければ、今の有効スタックを表示する
-    if (document.activeElement !== $('es-sheet')) $('es-sheet').value = state.es;
+    if (document.activeElement !== $('es-sheet')) $('es-sheet').value = esKnown() ? state.es : '';
   }
 
   // 入れる場所の並び（ボードは フロップ3枚｜ターン｜リバー の間をあける）
@@ -1475,29 +1572,56 @@ function setAmount(to) {
 }
 
 function doAction(type) {
-  const sim = simulate();
   state.message = '';
   if (type === 'b' || type === 'r') {
-    // ベット・レイズは、額を選んでから「決定」
+    // ベット・レイズは、額を選んでから「決定」（額を入れずに「額なしで決定」もできる）
     state.pending = type;
-    if (!(state.amount > sim.currentBet)) setAmount(Math.round(presets(sim)[0][1]));
     return;
   }
   record(type);
 }
 
+// 額が正しいかを調べる（before＝そのアクションの直前の状態）。問題なければ ''、あれば注意の文
+function checkAmount(before, pos, to) {
+  const p = before.players.find(q => q.pos === pos);
+  const maxPut = before.stack - p.total;  // 出せる最大額（オールイン）
+  if (to > maxPut) return `残りのスタック（${fmt(maxPut)}）以下の額にしてください。`;
+  // ミニマム：ベットは1BB以上、レイズは「今のベット額＋直前のレイズ幅」以上（オールインは少なくてもよい）
+  if (to < before.minTo && to !== maxPut) {
+    const bb = before.street === 0 ? `（${bbOf(before.minTo)}bb）` : '';
+    return `ミニマム ${fmt(before.minTo)}${bb} 以上の額にしてください（オールインのときは除く）。`;
+  }
+  return '';
+}
+
 function confirmAmount() {
   const sim = simulate();
-  const p = sim.players.find(q => q.pos === currentActor(sim));
-  const maxPut = sim.stack - p.total;
   const to = Math.round(state.amount);
-  if (!(to > sim.currentBet)) {
-    state.message = `今のベット額（${fmt(sim.currentBet)}）より大きい額を入れてください。`;
-  } else if (to > maxPut) {
-    state.message = `残りのスタック（${fmt(maxPut)}）以下の額にしてください。`;
-  } else {
-    record(state.pending, to);
-  }
+  if (!(to > 0)) { record(state.pending, null); return; }  // 額が空欄：額なしで記録（あとで入れる）
+  const err = checkAmount(sim, currentActor(sim), to);
+  if (err) state.message = err;
+  else record(state.pending, to);
+}
+
+// 詳しい履歴で、ベット・レイズの額を入れ直す
+function openEdit(i) {
+  state.editIdx = i;
+  state.editMsg = '';
+  $('edit-amount').value = state.actions[i].to > 0 ? state.actions[i].to : '';
+}
+function confirmEdit() {
+  const i = state.editIdx, a = state.actions[i];
+  const to = Math.round(+$('edit-amount').value);
+  if (!(to > 0)) { state.editMsg = '額を入れてください。'; return; }
+  const before = simulate(state.actions.slice(0, i));  // このアクションの直前まで再生
+  let err = checkAmount(before, a.pos, to);
+  // 同じストリートの、後のベット・レイズより大きくはできない
+  const later = state.actions.slice(i + 1).find(x => x.street === a.street && (x.type === 'b' || x.type === 'r') && x.to > 0);
+  if (!err && later && to >= later.to) err = `後の${later.pos}の${ACT_NAME[later.type]}（${fmt(later.to)}）より小さい額にしてください。`;
+  if (err) { state.editMsg = err; return; }
+  a.to = to;
+  state.editIdx = null;
+  state.editMsg = '';
 }
 
 // カードの表で1枚選んだとき
@@ -1599,7 +1723,7 @@ document.addEventListener('click', e => {
   const closer = e.target.closest('[data-close]');
   if (closer) {
     if (closer.dataset.close === 'sheet') closePicker();
-    else state.popup = null;
+    else { state.popup = null; state.editIdx = null; state.editMsg = ''; }
     render();
     return;
   }
@@ -1652,6 +1776,8 @@ document.addEventListener('click', e => {
   }
   else if (d.card) pickCard(d.card);
   else if (b.id === 'card-clear') setCard(state.pick, null);
+  else if (d.edit !== undefined) openEdit(+d.edit);  // 詳しい履歴：額を入れる／直す
+  else if (b.id === 'edit-ok') confirmEdit();
   else if (d.actor) { state.actor = d.actor; state.pending = null; state.message = ''; }
   else if (d.act) doAction(d.act);
   else if (d.to) {
@@ -1699,6 +1825,11 @@ function selectByAmount() {
   if (t) { state.pending = t; render(); }
 }
 $('amount').addEventListener('focus', selectByAmount);
+// 額を入れ直す欄：入れた額のbb表示を更新する
+$('edit-amount').addEventListener('input', e => {
+  const v = +e.target.value;
+  $('edit-bb').textContent = v ? `= ${bbOf(v)}bb` : '';
+});
 $('amount').addEventListener('input', e => {
   state.amount = +e.target.value || 0;
   state.message = '';
