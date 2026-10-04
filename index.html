@@ -12,49 +12,67 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="ハンドログ">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#145c45">
+<meta name="theme-color" content="#eef3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1512" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
-<!-- 文字の見た目（フォント）を読み込む -->
+<!-- 文字の見た目（フォント）を読み込む：日本語は Noto Sans JP、数字・ポジションは Roboto 系（Material Design 3 の標準） -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Condensed:wght@500;600;700&family=Roboto+Mono:wght@400;500&display=swap">
 
 <style>
   /* ============================================
      色の設定（明るいテーマ）
+     Material Design 3 の「色の役割」に合わせて名前を付けている
+     ・primary：選択中・決定（フェルトの緑）
+     ・tertiary：ベット・レイズ（攻めのアクション）
+     ・surface：背景と、その上に置く面（数字が大きいほど濃い）
      ============================================ */
   :root {
     color-scheme: light;
-    --bg: #eef2ef;          /* 背景 */
-    --surface: #ffffff;     /* カードや枠の中 */
-    --ink: #17211c;         /* 文字 */
-    --muted: #5f6d66;       /* 薄い文字 */
-    --line: #d5ddd8;        /* 区切り線 */
-    --felt: #145c45;        /* 選択中（フェルトの緑） */
-    --felt-soft: #dcebe4;   /* 選択中の薄い背景 */
-    --aggr: #c0561e;        /* ベット・レイズ（攻めのアクション） */
-    --aggr-ink: #ffffff;
-    --warn: #b3261e;        /* 注意メッセージ */
+    --bg: #eef3ef;                 /* 画面の背景 */
+    --surface: #ffffff;            /* 背景の上に置く面（アクション入力など） */
+    --sheet: #f7faf7;              /* 下から出るポップアップの面 */
+    --tonal: #e2e9e4;              /* ふつうのボタンの面 */
+    --tonal-2: #d6ded8;            /* 少し濃い面（空きのカード枠など） */
+    --ink: #161d19;                /* 文字 */
+    --muted: #49544d;              /* 薄い文字（白の上でも読める濃さにしている） */
+    --outline: #6f7a73;            /* 入力欄の枠（背景と見分けやすい濃さ） */
+    --line: #c9d2cc;               /* 区切り線 */
+    --primary: #1d6b4f;            /* 選択中（フェルトの緑） */
+    --on-primary: #ffffff;
+    --primary-soft: #c5ebd8;       /* 選択中の薄い面 */
+    --on-primary-soft: #00281a;
+    --aggr: #a8501c;               /* ベット・レイズ */
+    --on-aggr: #ffffff;
+    --aggr-soft: #ffdcc9;
+    --on-aggr-soft: #3a1300;
+    --warn: #b3261e;               /* 注意 */
+    --warn-soft: #fbe3e0;
+    --focus: #161d19;              /* キーボード操作のときの枠 */
+    --scrim: rgb(0 0 0 / .36);     /* ポップアップの後ろを暗くする */
     /* 4色デッキのスート色 */
-    --spade: #17211c;
+    --spade: #161d19;
     --heart: #cf2f3b;
     --diamond: #1f63c6;
-    --club: #2f8a3c;
-    --on-suit: #ffffff;     /* カードの表で、マークの色の上に書く文字 */
+    --club: #2a8139;
+    --on-suit: #ffffff;            /* カードの表で、マークの色の上に書く文字 */
     --font-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
-    --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
-    --font-mono: "JetBrains Mono", "Consolas", monospace;
+    --font-num: "Roboto Condensed", "Arial Narrow", "Noto Sans JP", sans-serif;
+    --font-mono: "Roboto Mono", "Consolas", monospace;
   }
 
   /* 色の設定（暗いテーマ：スマホがダークモードのとき） */
   @media (prefers-color-scheme: dark) {
     :root {
       color-scheme: dark;
-      --bg: #0e1411; --surface: #18211c; --ink: #e5ece8; --muted: #9aa8a0;
-      --line: #2a3630; --felt: #4fbf8a; --felt-soft: #1d3a2d;
-      --aggr: #e8793c; --aggr-ink: #1a0f08; --warn: #ff8a80;
-      --spade: #e5ece8; --heart: #ff6b76; --diamond: #6aa5ff; --club: #5fcf6e;
+      --bg: #0f1512; --surface: #1a211d; --sheet: #1d2420; --tonal: #29312c; --tonal-2: #333c36;
+      --ink: #e1e8e3; --muted: #aab5ae; --outline: #89948d; --line: #343d38;
+      --primary: #8bd6b2; --on-primary: #00382a; --primary-soft: #0f4f3a; --on-primary-soft: #c5ebd8;
+      --aggr: #ffb68f; --on-aggr: #4a1b00; --aggr-soft: #6d3410; --on-aggr-soft: #ffdcc9;
+      --warn: #ffb4ab; --warn-soft: #5c1a14; --focus: #e1e8e3; --scrim: rgb(0 0 0 / .55);
+      --spade: #e1e8e3; --heart: #ff6b76; --diamond: #6aa5ff; --club: #5fcf6e;
       --on-suit: #10140f;
     }
   }
@@ -77,29 +95,42 @@
     height: 100vh; height: 100dvh;   /* dvh：スマホのアドレスバーを除いた高さ */
     overflow: hidden;
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;  /* 押したときの青い四角を出さない（代わりに下の「押した感じ」を出す） */
   }
   /* 切り替える画面（入力・テキスト・履歴）。はみ出すときは、その中だけスクロールする */
   .view {
     flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     width: 100%; max-width: 560px; margin: 0 auto;
-    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
-    display: grid; align-content: start; gap: 14px;
+    padding: 10px 12px calc(16px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
+    display: grid; align-content: start; gap: 16px;
   }
   /* 入力の画面は、アクション履歴の部分が残りの高さを使う */
   .view-input { display: flex; flex-direction: column; gap: 8px; }
 
+  /* アイコン（Lucide。線で描くアイコン） */
+  .i {
+    width: 18px; height: 18px; flex-shrink: 0;
+    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .i-sm { width: 16px; height: 16px; }
+
   /* ① シチュエーション（1行。押すと設定のポップアップ） */
   .situ {
-    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 0 12px;
+    justify-content: flex-start; gap: 8px; width: 100%; min-height: 40px; padding: 0 6px 0 12px;
+    background-color: var(--surface); border-radius: 12px;
     font-size: 13px; font-variant-numeric: tabular-nums; text-align: left; flex-shrink: 0;
   }
-  .situ-edit { margin-left: auto; font-size: 12.5px; color: var(--felt); font-weight: 700; white-space: nowrap; }
+  .situ > .i { color: var(--muted); }
+  .situ-edit { margin-left: auto; display: inline-flex; align-items: center; font-size: 12.5px; color: var(--primary); font-weight: 700; white-space: nowrap; }
 
   /* ② HEROの手札とポット */
   .hand-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .row-label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .1em; }
-  .hero-pos-btn { font-family: var(--font-num); font-size: 18px; font-weight: 700; min-height: 44px; padding: 0 10px; }
-  .hero-pos-btn.warn { color: var(--warn); border-color: var(--warn); font-family: var(--font-jp); font-size: 12.5px; }
+  .row-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .hero-pos-btn {
+    font-family: var(--font-num); font-size: 18px; font-weight: 700; min-height: 44px; padding: 0 12px;
+    background-color: var(--primary-soft); color: var(--on-primary-soft);
+  }
+  .hero-pos-btn.warn { background-color: var(--warn-soft); color: var(--warn); font-family: var(--font-jp); font-size: 12.5px; }
   .hand-row .card { width: 38px; height: 50px; font-size: 21px; }
   .hand-row button.card { min-height: 50px; }
   .hand-row .card span { font-size: 15px; }
@@ -108,85 +139,116 @@
     margin-left: auto; text-align: right; line-height: 1.05;
     font-family: var(--font-num); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
   }
-  .pot small { display: block; font-size: 13px; color: var(--muted); letter-spacing: .06em; font-weight: 600; }
+  .pot small { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
 
   /* ③ ボード */
   .board-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .board-reset { margin-left: auto; min-height: 50px; padding: 0 8px; font-size: 12px; line-height: 1.3; color: var(--muted); }
+  .board-reset {
+    margin-left: auto; min-height: 50px; padding: 0 6px; flex-direction: column; gap: 2px;
+    background-color: transparent; font-size: 11px; line-height: 1.2; color: var(--muted);
+  }
+  .board-reset .i { width: 20px; height: 20px; }
 
   /* ④ アクション履歴（短い表示。残りの高さを使い、あふれたらその中でスクロール） */
   .log-mini {
     flex: 0 1 auto; min-height: 56px; max-height: 190px;  /* 中身に合わせた高さ（最大でストリート4つ分） */
     overflow-y: auto; cursor: pointer;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px;
+    background: var(--surface); border-radius: 12px; padding: 6px 12px 8px;
   }
-  .log-mini-head { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: .08em; }
-  .log-mini-head span { color: var(--felt); letter-spacing: 0; }
+  .log-mini-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .log-mini-head > span { display: inline-flex; align-items: center; color: var(--primary); }
   .lm { display: flex; gap: 8px; font-variant-numeric: tabular-nums; font-size: 14px; line-height: 1.45; }
   .lm b { font-family: var(--font-num); font-weight: 700; color: var(--muted); min-width: 3.4em; flex-shrink: 0; }
-  .lm b small { display: block; font-size: 11.5px; font-weight: 500; }
+  .lm b small { display: block; font-size: 12px; font-weight: 500; }
   .lm .who { font-family: var(--font-num); font-weight: 700; font-size: 15px; }
-  .lm .who.hero { color: var(--felt); }
+  .lm .who.hero { color: var(--primary); }
   .lm .parts { display: flex; flex-wrap: wrap; column-gap: 12px; }
 
   /* HEROの手札を選ぶ画面の、有効スタック入力 */
   .sheet-es { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
   .sheet-es input[type="number"] { width: 5em; min-height: 36px; }
 
-  /* 上部：画面の切り替えと「新しいハンド」 */
+  /* 上部：画面の切り替え（タブ）と「新しいハンド」 */
   .topbar {
-    flex-shrink: 0; padding: 8px 12px;
-    padding-top: calc(8px + env(safe-area-inset-top, 0px));  /* ホーム画面から開いたとき、時計などの表示と重ならないように */
+    flex-shrink: 0; padding: 0 10px 0 4px;
+    padding-top: env(safe-area-inset-top, 0px);  /* ホーム画面から開いたとき、時計などの表示と重ならないように */
     background: var(--bg); border-bottom: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    display: flex; align-items: center; gap: 6px;
   }
-  .tabs { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .tabs button { border: 0; border-radius: 0; border-right: 1px solid var(--line); min-height: 34px; padding: 0 9px; font-size: 13px; white-space: nowrap; }
-  .tabs button:last-child { border-right: 0; }
+  .tabs { display: flex; flex: 1; min-width: 0; }
+  /* 選んでいるタブは、文字を緑にして下に線を引く（Material Design 3 のタブ） */
+  .tabs button {
+    position: relative; flex: 1 1 auto; min-height: 48px; padding: 0 6px;
+    background: transparent; border-radius: 0; color: var(--muted);
+    font-size: 13.5px; font-weight: 500; white-space: nowrap;
+  }
+  .tabs button.on { background: transparent; color: var(--primary); font-weight: 700; }
+  .tabs button.on::after {
+    content: ""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 3px;
+    border-radius: 3px 3px 0 0; background: var(--primary);
+  }
 
-  .note {
-    font-size: 12.5px; color: var(--muted); margin: 0;
-    border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px;
-  }
+  .note { font-size: 13px; color: var(--muted); margin: 0; background: var(--tonal); border-radius: 8px; padding: 8px 10px; }
 
   /* 各ブロック（設定・ヒーロー・ボード…） */
   section { display: grid; gap: 8px; }
-  h2 {
-    font-size: 12px; font-weight: 700; color: var(--muted);
-    letter-spacing: .12em; margin: 0;
-  }
+  h2 { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 4px; }
   .panel {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px; display: grid; gap: 12px;
+    background: var(--surface); border-radius: 16px;
+    padding: 14px; display: grid; gap: 12px;
   }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .label { font-size: 13px; color: var(--muted); min-width: 5.5em; }
   .label.pos-name { font-family: var(--font-num); font-size: 17px; font-weight: 700; color: var(--ink); min-width: 3.5em; }
   .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
 
-  /* ボタンの基本形 */
+  /* ============================================
+     ボタン
+     ふつう＝薄い面のボタン（枠線なし）、primary＝緑で塗ったボタン、on＝選択中
+     ============================================ */
   button {
-    font: inherit; color: var(--ink); background: var(--surface);
-    border: 1px solid var(--line); border-radius: 8px;
-    min-height: 40px; padding: 0 12px; cursor: pointer;
+    font: inherit; color: var(--ink); background-color: var(--tonal);
+    border: 0; border-radius: 10px;
+    min-height: 40px; padding: 0 14px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    /* 押したときに少し濃くする（Material Design 3 の「押した感じ」） */
+    background-image: linear-gradient(var(--press, transparent), var(--press, transparent));
+    transition: background-color .12s;
   }
-  button:disabled { opacity: .35; cursor: default; }
-  button:focus-visible, input:focus-visible { outline: 3px solid var(--felt); outline-offset: 2px; }
-  button.on { background: var(--felt); border-color: var(--felt); color: var(--surface); font-weight: 700; }
+  button:active:not(:disabled) { --press: rgb(0 0 0 / .1); }
+  @media (prefers-color-scheme: dark) { button:active:not(:disabled) { --press: rgb(255 255 255 / .12); } }
+  button:disabled { opacity: .38; cursor: default; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, .log-mini:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px;
+  }
+  button.on { background-color: var(--primary); color: var(--on-primary); font-weight: 700; }
+  .primary { background-color: var(--primary); color: var(--on-primary); font-weight: 700; }
+  .danger { background-color: transparent; color: var(--warn); }
+  /* 文字だけのボタン（やめる・閉じる など） */
+  .text-btn { background-color: transparent; color: var(--primary); font-weight: 700; padding: 0 10px; }
+  /* アイコンだけの丸いボタン（閉じる） */
+  .icon-btn {
+    width: 40px; min-width: 40px; height: 40px; min-height: 40px; padding: 0;
+    border-radius: 50%; background-color: transparent; color: var(--muted); flex-shrink: 0;
+  }
+  .icon-btn .i { width: 22px; height: 22px; }
 
-  /* 選択肢を横に並べたボタン（人数・アンティ） */
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); min-width: 3.2em; }
+  /* 選択肢を横に並べたボタン（人数・アンティ）：Material Design 3 のセグメントボタン */
+  .seg { display: inline-flex; border: 1px solid var(--outline); border-radius: 999px; overflow: hidden; }
+  .seg button { background-color: transparent; border-radius: 0; border-right: 1px solid var(--outline); min-width: 3.4em; min-height: 40px; }
   .seg button:last-child { border-right: 0; }
+  .seg button.on { background-color: var(--primary-soft); color: var(--on-primary-soft); }
   /* 人数（2〜9人）は8つ並ぶので、横いっぱいに均等に並べる */
   .seats-seg { display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; }
   .seats-seg button { min-width: 0; padding: 0; font-size: 14px; }
 
+  /* 入力欄（デジタル庁のデザインシステムにならい、枠をはっきりした濃さにする） */
   input[type="number"] {
     font-family: var(--font-num); font-size: 18px; font-variant-numeric: tabular-nums;
-    width: 6.5em; min-height: 40px; padding: 0 8px;
-    color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    width: 6.5em; min-height: 40px; padding: 0 10px;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--outline); border-radius: 8px;
   }
+  input:focus, textarea:focus { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); outline: none; }
   input:disabled { opacity: .4; }
 
   /* ポジションのボタン */
@@ -196,15 +258,16 @@
   /* トランプのカード */
   .cards { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .card {
-    width: 46px; height: 62px; border-radius: 7px;
-    background: var(--surface); border: 1.5px solid var(--line);
+    width: 46px; height: 62px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--line);
     display: grid; place-items: center; line-height: 1;
     font-family: var(--font-num); font-weight: 700; font-size: 24px;
   }
-  button.card { min-height: 62px; padding: 0; }
+  button.card { min-height: 62px; padding: 0; background-image: none; }
   .card span { display: block; font-size: 18px; margin-top: -4px; }
-  .card.empty { border-style: dashed; color: var(--muted); font-size: 12px; font-family: var(--font-jp); font-weight: 500; }
-  .card.target { border-color: var(--felt); box-shadow: 0 0 0 2px var(--felt); }
+  /* まだ入れていない枠：線で囲まず、少し濃い面にする */
+  .card.empty { background: var(--tonal-2); border-color: transparent; color: var(--muted); font-size: 12px; font-family: var(--font-jp); font-weight: 500; }
+  .card.target { border: 2px solid var(--primary); }
   .board-gap { width: 6px; }
   .s { color: var(--spade); } .h { color: var(--heart); } .d { color: var(--diamond); } .c { color: var(--club); }
   .x { color: var(--muted); }  /* 色（マーク）不明 */
@@ -215,116 +278,119 @@
   .log { display: grid; gap: 4px; }
   .log-head {
     display: flex; justify-content: space-between; gap: 8px;
-    font-family: var(--font-num); font-weight: 600; font-size: 15px; letter-spacing: .06em; color: var(--muted);
-    margin-top: 6px;
+    font-family: var(--font-num); font-weight: 700; font-size: 15px; color: var(--muted);
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
   }
-  .log-head:first-child { margin-top: 0; }
-  .log-head .mini { letter-spacing: 0; margin-left: 6px; font-weight: 700; }
-  .log-head b { font-variant-numeric: tabular-nums; }
-  .act { display: flex; gap: 8px; align-items: baseline; font-variant-numeric: tabular-nums; }
+  .log-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+  .log-head .mini { margin-left: 8px; font-weight: 700; }
+  .log-head b { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .act { display: flex; gap: 8px; align-items: center; min-height: 30px; font-variant-numeric: tabular-nums; }
   .act .who { font-family: var(--font-num); font-weight: 700; font-size: 16px; width: 3em; }
-  .act .who.hero { color: var(--felt); }
-  .act.auto { font-size: 12.5px; color: var(--muted); }
-  .tag { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); }
-  .tag.aggr { background: var(--aggr); border-color: var(--aggr); color: var(--aggr-ink); }
+  .act .who.hero { color: var(--primary); }
+  .act.auto { font-size: 12.5px; color: var(--muted); min-height: 0; }
+  /* アクションの種類（小さな札） */
+  .tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--tonal); }
+  .tag.aggr { background: var(--aggr-soft); color: var(--on-aggr-soft); }
   .act .amt { font-family: var(--font-num); font-size: 16px; }
   .empty-log { margin: 0; font-size: 13px; color: var(--muted); }
   /* 額を入れ直すボタンと欄（詳しい履歴） */
-  .act .edit-amt { margin-left: auto; min-height: 30px; padding: 0 10px; font-size: 12.5px; }
-  .act .edit-amt.need { color: var(--warn); border-color: var(--warn); font-weight: 700; }
-  .act .edit-amt.on { color: var(--surface); border-color: var(--felt); }  /* 今、額を入れているもの */
-  .edit-box { display: grid; gap: 6px; padding: 8px; border: 2px solid var(--felt); border-radius: 10px; }
+  .act .edit-amt { margin-left: auto; min-height: 32px; padding: 0 10px; font-size: 12.5px; }
+  .act .edit-amt.need { background-color: var(--warn-soft); color: var(--warn); font-weight: 700; }
+  .edit-box { display: grid; gap: 8px; padding: 12px; background: var(--primary-soft); border-radius: 12px; }
+  .edit-box .turn, .edit-box .turn b { color: var(--on-primary-soft); }
   .log-mini .need-amt { color: var(--warn); font-weight: 700; font-size: 12.5px; }
 
   /* 記録テキスト（コピーする部分） */
   pre {
     margin: 0; padding: 12px; overflow-x: auto;
-    font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
-    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+    background: var(--bg); border-radius: 10px;
   }
-  .primary { background: var(--felt); color: var(--surface); border-color: var(--felt); font-weight: 700; }
-  .copy-msg { font-size: 12.5px; color: var(--felt); }
+  .copy-msg { font-size: 12.5px; color: var(--primary); font-weight: 500; }
   details { display: grid; gap: 8px; }
   details summary { cursor: pointer; padding-block: 4px; }
   details pre { margin-top: 8px; font-size: 12px; }
+  /* たためる見出し（中身を見る・バックアップ）：右向きの矢印が、開くと下向きになる */
+  .fold { display: inline-flex; align-items: center; gap: 4px; list-style: none; color: var(--primary); font-weight: 700; }
+  .fold::-webkit-details-marker { display: none; }
+  .chev { transition: transform .15s; color: var(--muted); }
+  details[open] > summary .chev { transform: rotate(180deg); }
+  .fold .chev { color: currentColor; }
 
   /* ハンド履歴 */
   .hist { display: grid; }
-  .hist-item { border-top: 1px solid var(--line); padding-block: 8px; }
-  .hist-item:first-child { border-top: 0; padding-top: 0; }
+  .hist-item { border-top: 1px solid var(--line); padding-block: 10px; }
+  .hist-item:first-child { border-top: 0; }
   .hist-item summary {
-    display: flex; align-items: baseline; gap: 10px; list-style: none;
+    display: flex; align-items: center; gap: 10px; list-style: none;
     font-variant-numeric: tabular-nums;
   }
   .hist-item summary::-webkit-details-marker { display: none; }
-  .hist-item summary::after { content: '▼'; margin-left: auto; font-size: 11px; color: var(--muted); }
-  .hist-item[open] summary::after { content: '▲'; }
+  .hist-item summary .chev { margin-left: auto; }
   .hist-time { font-size: 12.5px; color: var(--muted); min-width: 6.5em; }
   .hist-pos { font-family: var(--font-num); font-weight: 700; font-size: 16px; min-width: 3em; }
   .hist-hand { font-family: var(--font-num); font-weight: 700; font-size: 16px; }
   .hist-pot { font-family: var(--font-num); font-size: 15px; color: var(--muted); }
-  .hist-item .row button { min-height: 36px; font-size: 13px; }
-  .hist-item .danger { color: var(--warn); }
+  .hist-item .row button, .sess-in > .row button { min-height: 36px; font-size: 13px; padding: 0 12px; gap: 5px; }
+  .hist-item .row button .i, .sess-in > .row button .i { width: 16px; height: 16px; }
   /* セッション（日付ごとのまとまり） */
-  .sess { border-top: 1px solid var(--line); padding-block: 8px; }
+  .sess { border-top: 1px solid var(--line); padding-block: 10px; }
   .sess:first-child { border-top: 0; padding-top: 0; }
-  .sess > summary { display: flex; align-items: baseline; gap: 8px; list-style: none; }
+  .sess > summary { display: flex; align-items: center; gap: 8px; list-style: none; min-height: 32px; }
   .sess > summary::-webkit-details-marker { display: none; }
-  .sess > summary::after { content: '▼'; margin-left: auto; font-size: 11px; color: var(--muted); }
-  .sess[open] > summary::after { content: '▲'; }
+  .sess > summary .chev { margin-left: auto; }
   .sess-date { font-family: var(--font-num); font-weight: 700; font-size: 18px; white-space: nowrap; }
   .sess-name { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .sess-count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-  .sess-in > .row button { min-height: 36px; font-size: 13px; }
-  .sess .danger { color: var(--warn); }
   /* 今のセッション（一覧の「今」の印と、上の表示） */
-  .sess-cur { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 99px; background: var(--felt); color: var(--surface); white-space: nowrap; }
+  .sess-cur { font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 6px; background: var(--primary-soft); color: var(--on-primary-soft); white-space: nowrap; }
   .cur-sess { font-size: 14px; }
-  .cur-sess b { color: var(--felt); }
-  .ver { text-align: right; font-size: 11px; }
+  .cur-sess b { color: var(--primary); }
+  .ver { text-align: right; font-size: 11.5px; }
   /* 長いセッション名などで、履歴の枠が画面の幅より広がらないように */
   .panel, details, .hist, .sess-in { grid-template-columns: minmax(0, 1fr); }
   .sess > summary { min-width: 0; }
   /* 選んで移す：チェック欄つきの1行と、画面下の帯 */
   .hist-sel { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; cursor: pointer; }
-  .hist-sel input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--felt); }
+  .hist-sel input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--primary); }
   .sel-top { display: flex; align-items: center; gap: 8px; }
   .sel-top .copy-msg { font-size: 12px; margin-right: auto; }
   .sel-acts { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px; }
   .sel-bar {
     flex-shrink: 0; display: grid; gap: 6px;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
-    background: var(--surface); border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); box-shadow: 0 -1px 0 var(--line), 0 -4px 12px rgb(0 0 0 / .08);
   }
   .sel-count { font-size: 13px; font-weight: 700; white-space: nowrap; }
-  .sel-bar button { min-height: 40px; font-size: 13.5px; }
+  .sel-bar button { min-height: 40px; font-size: 13.5px; padding: 0 6px; gap: 4px; white-space: nowrap; }
   /* 入力画面の1行目：長いときは「…」で省略 */
   .situ-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .situ-sum b { color: var(--felt); }
+  .situ-sum b { color: var(--primary); }
   /* 履歴のハンドを直しているときの帯（上部の下） */
   .edit-bar {
     flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 6px 12px;
-    background: var(--felt-soft); border-bottom: 1px solid var(--line);
+    background: var(--primary-soft);
   }
-  .edit-bar-title { font-size: 12.5px; font-weight: 700; color: var(--felt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-right: auto; }
-  .edit-bar button { min-height: 34px; padding: 0 8px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
-  .sess .hist { margin-left: 4px; padding-left: 10px; border-left: 3px solid var(--felt-soft); }
-  .sess .hist-item:first-child { border-top: 0; }
-  .sess-in { display: grid; gap: 8px; margin-top: 4px; }
+  .edit-bar-title { font-size: 12.5px; font-weight: 700; color: var(--on-primary-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-right: auto; }
+  .edit-bar button { min-height: 34px; padding: 0 10px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
+  .edit-bar button:not(.primary) { background-color: var(--surface); }
+  /* セッションの中のハンド一覧は、少し濃い面にまとめる（左の線は使わない） */
+  .sess .hist { background: var(--bg); border-radius: 12px; padding: 2px 12px; }
+  .sess-in { display: grid; gap: 8px; margin-top: 8px; }
   /* 文字や日付を入れる欄（セッション名・日付） */
   input[type="text"], input[type="date"] {
-    font: inherit; font-size: 16px; min-height: 40px; padding: 0 8px; min-width: 0;
-    color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; font-size: 16px; min-height: 40px; padding: 0 10px; min-width: 0;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--outline); border-radius: 8px;
   }
   input[type="text"] { flex: 1; }
   #sess-date { width: 9.5em; }
-  .sess-new { font-size: 13px; padding: 0 10px; }
+  .sess-new { font-size: 13px; padding: 0 12px; }
   /* バックアップ・復元 */
-  .backup { border-top: 1px solid var(--line); padding-top: 8px; }
+  .backup { border-top: 1px solid var(--line); padding-top: 10px; }
   .backup-in { display: grid; gap: 8px; margin-top: 8px; }
   .backup textarea {
-    width: 100%; font-family: var(--font-mono); font-size: 12px; padding: 8px;
-    color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    width: 100%; font-family: var(--font-mono); font-size: 12px; padding: 8px 10px;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--outline); border-radius: 8px;
   }
   .copy-msg.warn { color: var(--warn); }
 
@@ -332,45 +398,51 @@
      ⑤ アクション入力（入力の画面の一番下）
      ============================================ */
   .act-area {
-    flex-shrink: 0; display: grid; gap: 7px;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px 10px;
+    flex-shrink: 0; display: grid; gap: 7px; grid-template-columns: minmax(0, 1fr);
+    background: var(--surface); border-radius: 16px; padding: 8px 10px 10px;
   }
   .act-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .act-top button { min-height: 32px; font-size: 13px; flex-shrink: 0; }
+  .act-top button { min-height: 32px; font-size: 13px; padding: 0 10px 0 8px; gap: 4px; flex-shrink: 0; }
+  .act-top button .i { width: 16px; height: 16px; }
   /* 今のストリート（PF・FLOP・TURN・RIVER） */
   .streets { display: flex; gap: 4px; }
   .streets span {
-    font-family: var(--font-num); font-weight: 700; font-size: 14px; letter-spacing: .04em;
-    padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted);
+    font-family: var(--font-num); font-weight: 700; font-size: 14px;
+    padding: 3px 9px; border-radius: 8px; color: var(--muted); opacity: .6;
   }
-  .streets .done { color: var(--ink); }
-  .streets .now { background: var(--felt); border-color: var(--felt); color: var(--surface); }
-  .pad-body { display: grid; gap: 7px; }
+  .streets .done { color: var(--ink); opacity: 1; }
+  .streets .now { background: var(--primary); color: var(--on-primary); opacity: 1; }
+  .pad-body { display: grid; gap: 7px; grid-template-columns: minmax(0, 1fr); }
   .next-hand { width: 100%; min-height: 50px; font-size: 16px; }
   /* ハンド終了時のボタン（次のハンドへ・保存先を選んで保存・コピーして次へ） */
   .end-btns { display: grid; gap: 6px; }
   .end-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .end-sub button { min-height: 42px; font-size: 13px; padding: 0 4px; line-height: 1.2; }
+  .end-sub button { min-height: 44px; font-size: 13px; padding: 0 4px; line-height: 1.2; flex-direction: column; gap: 1px; }
   .end-sub small { display: block; font-size: 11px; color: var(--muted); }
   /* 保存先のセッションを選ぶポップアップ */
   .save-list { display: grid; gap: 6px; }
-  .save-list button { text-align: left; display: flex; gap: 8px; align-items: baseline; min-height: 42px; }
-  .save-list button.on small { color: var(--surface); }
+  .save-list button { justify-content: flex-start; text-align: left; gap: 8px; min-height: 44px; background-color: var(--surface); }
+  .save-list button.on { background-color: var(--primary-soft); color: var(--on-primary-soft); box-shadow: inset 0 0 0 2px var(--primary); }
+  .save-list button.on small { color: var(--on-primary-soft); }
   .save-list b { white-space: nowrap; }
   .save-list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .save-list small { font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .save-new { display: grid; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 10px; }
+  .save-new { display: grid; gap: 8px; padding: 12px; background: var(--tonal); border-radius: 12px; }
   /* 同じ名前のセッションの候補（名前を入れたときに出す） */
   .same-list { display: grid; gap: 4px; }
   .same-list:empty { display: none; }
-  .same-list .hint b { color: var(--felt); }
+  .same-list .hint b { color: var(--primary); }
   .same-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
   .same-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
   .same-row small { font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .same-row button { min-height: 34px; padding: 0 10px; font-size: 12.5px; flex-shrink: 0; }
+  .same-row button { min-height: 34px; padding: 0 12px; font-size: 12.5px; flex-shrink: 0; background-color: var(--surface); }
   .save-keep { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-  .save-keep input { width: 20px; height: 20px; }
-  .new-hand { min-height: 34px; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  .save-keep input { width: 20px; height: 20px; accent-color: var(--primary); }
+  .new-hand {
+    min-height: 36px; padding: 0 12px 0 8px; gap: 4px; border-radius: 999px;
+    background-color: var(--primary-soft); color: var(--on-primary-soft);
+    font-size: 12.5px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+  }
   /* ショーダウン（相手の手札） */
   .showdown { display: grid; gap: 8px; }
   .showdown .card { width: 40px; height: 52px; font-size: 21px; }
@@ -381,14 +453,15 @@
   .turn b { color: var(--ink); font-family: var(--font-num); font-size: 18px; margin-right: 4px; }
   .who-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
   .who-row .who-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
-  .who-row button { min-height: 36px; padding: 0 9px; font-family: var(--font-num); font-size: 16px; font-weight: 600; }
-  .acts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-  .acts button { min-height: 48px; font-weight: 700; padding: 0; font-size: 12.5px; line-height: 1.15; white-space: nowrap; letter-spacing: -.03em; }
+  .who-row button { min-height: 36px; padding: 0 9px; border-radius: 8px; font-family: var(--font-num); font-size: 16px; font-weight: 600; }
+  .acts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .acts button { min-height: 48px; border-radius: 12px; font-weight: 700; padding: 0; font-size: 13px; line-height: 1.15; white-space: nowrap; flex-direction: column; gap: 1px; }
   .acts button small { display: block; font-family: var(--font-num); font-size: 13px; font-weight: 600; }
-  .acts .aggr { background: var(--aggr); border-color: var(--aggr); color: var(--aggr-ink); }
-  .acts .aggr.pending { box-shadow: 0 0 0 3px var(--ink); }
-  .sizes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
-  .sizes button { min-height: 36px; font-size: 12.5px; padding: 0; white-space: nowrap; letter-spacing: -.03em; }
+  .acts .aggr { background-color: var(--aggr); color: var(--on-aggr); }
+  .acts .aggr.pending { outline: 3px solid var(--ink); outline-offset: 2px; }
+  /* 額の早押し（枠線だけの小さなボタン） */
+  .sizes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  .sizes button { min-height: 36px; font-size: 12.5px; padding: 0; border-radius: 8px; white-space: nowrap; background-color: transparent; box-shadow: inset 0 0 0 1px var(--line); }
   .amount-row { display: flex; gap: 8px; align-items: center; }
   .amount-row input { flex: 1; width: auto; min-width: 0; }
   .amount-row .bb { font-family: var(--font-num); font-size: 15px; color: var(--muted); min-width: 4em; }
@@ -397,53 +470,55 @@
   .msg:empty { display: none; }
 
   /* ============================================
-     カード選択のポップアップ（縦＝マーク、横＝A〜2 の表）
+     ポップアップ（画面の下から出る「ボトムシート」）
      ============================================ */
   .modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
-  .modal-back { position: absolute; inset: 0; background: rgb(0 0 0 / .4); }
-  /* 続きから入力するかのポップアップは、ほかのポップアップより手前・画面の真ん中に出す */
-  .resume-pop { z-index: 30; align-items: center; }
-  .resume-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .resume-btns button { min-height: 50px; font-size: 14.5px; padding: 0 6px; }
+  .modal-back { position: absolute; inset: 0; background: var(--scrim); }
   .modal-box {
     position: relative; width: 100%; max-width: 560px;
-    margin: 0 6px calc(6px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
     max-height: calc(100vh - 12px);
     max-height: calc(100dvh - 12px - env(safe-area-inset-top, 0px));
     overflow-y: auto; overscroll-behavior: contain;
-    background: var(--surface); border-radius: 14px; padding: 10px 8px 12px;
-    display: grid; gap: 10px; box-shadow: 0 10px 30px rgb(0 0 0 / .25);
+    background: var(--sheet); border-radius: 24px 24px 0 0;
+    padding: 8px 10px calc(14px + env(safe-area-inset-bottom, 0px));  /* iPhoneの下のバーと重ならないように */
+    display: grid; gap: 10px; box-shadow: 0 -2px 16px rgb(0 0 0 / .18);
     grid-template-columns: minmax(0, 1fr);  /* 中身（入力欄など）がポップアップの幅を広げないように */
     overflow-x: hidden;
   }
-  .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .modal-top button { min-height: 34px; font-size: 13px; flex-shrink: 0; }
+  /* 続きから入力するかのポップアップは、ほかのポップアップより手前・画面の真ん中に出す（ダイアログ） */
+  .resume-pop { z-index: 30; align-items: center; padding: 8px; }
+  .resume-pop .modal-box { max-width: 400px; border-radius: 24px; padding: 20px 12px 14px; gap: 12px; }
+  .resume-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .resume-btns button { min-height: 50px; font-size: 13.5px; padding: 0 4px; white-space: nowrap; }
+  .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 40px; padding-left: 4px; }
+  .modal-title { margin: 0; font-size: 17px; font-weight: 700; }
   /* 入れる場所（手札2枚・ボード5枚など）の並び */
   .pick-slots { justify-content: center; }
   /* カードの表：13列（A〜2）× 5段（♠♥♦♣と、色を忘れたとき用の?） */
   .grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 2px; }
   .grid .gc {
-    min-width: 0; min-height: 44px; padding: 0; border: 0; border-radius: 5px;
+    min-width: 0; min-height: 44px; padding: 0; border-radius: 6px;
     display: grid; place-content: center; line-height: 1;
     font-family: var(--font-num); font-size: 18px; font-weight: 700; color: var(--on-suit);
   }
   .grid .gc span { display: block; font-size: 11px; margin-top: 2px; }
-  .grid .g-s { background: var(--spade); }
-  .grid .g-h { background: var(--heart); }
-  .grid .g-d { background: var(--diamond); }
-  .grid .g-c { background: var(--club); }
-  .grid .g-x { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .grid .g-s { background-color: var(--spade); }
+  .grid .g-h { background-color: var(--heart); }
+  .grid .g-d { background-color: var(--diamond); }
+  .grid .g-c { background-color: var(--club); }
+  .grid .g-x { background-color: var(--tonal); color: var(--muted); }
   .grid .gc:disabled { opacity: .15; }  /* もう使っているカード */
-  .grid .gc.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); position: relative; z-index: 1; }
+  .grid .gc.on { box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--ink); position: relative; z-index: 1; }
   .modal-foot { display: flex; align-items: center; gap: 8px; }
-  .modal-foot button { min-height: 34px; font-size: 13px; flex-shrink: 0; }
+  .modal-foot button { min-height: 34px; font-size: 13px; padding: 0 12px 0 10px; gap: 4px; flex-shrink: 0; }
+  .modal-foot button .i { width: 16px; height: 16px; }
   .to-board { width: 100%; min-height: 48px; font-size: 16px; }
   .board-foot { display: flex; align-items: center; gap: 8px; }
   .board-foot button { min-height: 34px; font-size: 13px; flex-shrink: 0; margin-left: auto; }
   /* HEROの手札を選ぶときに出すポジションの列（1列に並べる） */
   .sheet-pos-wrap { display: grid; gap: 4px; }
   .sheet-pos { display: grid; gap: 4px; }
-  .sheet-pos button { font-family: var(--font-num); font-size: 15px; font-weight: 600; padding: 0; min-height: 38px; }
+  .sheet-pos button { font-family: var(--font-num); font-size: 15px; font-weight: 600; padding: 0; min-height: 38px; border-radius: 8px; }
   .sheet-pos-wrap.need .sheet-pos { outline: 2px solid var(--warn); outline-offset: 2px; border-radius: 8px; }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -463,7 +538,7 @@
     <button type="button" data-view="text">テキスト</button>
     <button type="button" data-view="history">セッション・履歴</button>
   </nav>
-  <button type="button" id="new-hand" class="new-hand">新しいハンド</button>
+  <button type="button" id="new-hand" class="new-hand"><svg class="i" data-i="plus" aria-hidden="true"></svg>新しいハンド</button>
 </header>
 <!-- 履歴のハンドを開いて直しているときだけ出る帯 -->
 <div class="edit-bar" id="edit-bar" hidden>
@@ -479,8 +554,9 @@
 <main class="view view-input" id="view-input">
   <!-- ① シチュエーション（押すと、設定のポップアップが開く） -->
   <button type="button" class="situ" id="situ-open">
+    <svg class="i" data-i="sliders-horizontal" aria-hidden="true"></svg>
     <span class="situ-sum" id="summary"></span>
-    <span class="situ-edit">変更 ▸</span>
+    <span class="situ-edit">変更<svg class="i i-sm" data-i="chevron-right" aria-hidden="true"></svg></span>
   </button>
 
   <!-- ② HEROのポジション・手札と、ポット -->
@@ -494,12 +570,12 @@
   <!-- ③ ボード（枠を押すとカードの表。5枚続けて入れられる） -->
   <div class="board-row">
     <div class="cards" id="board"></div>
-    <button type="button" data-reset="board" id="board-reset" class="board-reset">全部<br>消す</button>
+    <button type="button" data-reset="board" id="board-reset" class="board-reset" aria-label="ボードを全部消す"><svg class="i" data-i="eraser" aria-hidden="true"></svg>全部消す</button>
   </div>
 
   <!-- ④ アクション履歴（短く表示。押すと詳しい履歴のポップアップ） -->
   <div class="log-mini" id="log-open" role="button" tabindex="0" aria-label="アクション履歴を詳しく見る">
-    <div class="log-mini-head">アクション履歴<span id="log-mini-link">詳しく ▸</span></div>
+    <div class="log-mini-head">アクション履歴<span id="log-mini-link"></span></div>
     <div class="log-mini-body" id="log-mini"></div>
   </div>
 
@@ -507,7 +583,7 @@
   <div class="act-area" id="pad">
     <div class="act-top">
       <div class="streets" id="streets"></div>
-      <button type="button" id="undo">1つ戻す</button>
+      <button type="button" id="undo"><svg class="i" data-i="undo-2" aria-hidden="true"></svg>1つ戻す</button>
     </div>
     <div class="turn" id="turn"></div>
     <div class="pad-body" id="pad-body">
@@ -529,7 +605,7 @@
     <!-- ハンドが終わったときだけ出る：ショーダウン（相手の手札）と「次のハンドへ」 -->
     <div class="showdown" id="showdown" hidden></div>
     <div class="end-btns" id="end-btns" hidden>
-      <button type="button" id="next-hand" class="primary next-hand">次のハンドへ（履歴に保存）</button>
+      <button type="button" id="next-hand" class="primary next-hand">次のハンドへ（履歴に保存）<svg class="i" data-i="arrow-right" aria-hidden="true"></svg></button>
       <div class="end-sub">
         <button type="button" id="save-as">保存先を選んで保存</button>
         <button type="button" id="copy-next">コピーして次へ<small>（保存しない）</small></button>
@@ -549,8 +625,8 @@
     <div class="panel">
       <pre id="output"></pre>
       <div class="row">
-        <button type="button" id="share" class="primary">共有（LINE・メモなど）</button>
-        <button type="button" id="copy">テキストをコピー</button>
+        <button type="button" id="share" class="primary"><svg class="i" data-i="share-2" aria-hidden="true"></svg>共有（LINE・メモなど）</button>
+        <button type="button" id="copy"><svg class="i" data-i="copy" aria-hidden="true"></svg>テキストをコピー</button>
         <span class="copy-msg" id="copy-msg"></span>
       </div>
     </div>
@@ -558,15 +634,15 @@
 
   <!-- GTO Wizard用テキスト（PokerStarsのトーナメント形式） -->
   <section>
-    <h2>GTO WIZARD用</h2>
+    <h2>GTO Wizard用</h2>
     <div class="panel">
       <p class="hint" id="gtow-status"></p>
       <div class="row">
-        <button type="button" id="copy-gtow" class="primary">GTO Wizard用をコピー</button>
+        <button type="button" id="copy-gtow" class="primary"><svg class="i" data-i="copy" aria-hidden="true"></svg>GTO Wizard用をコピー</button>
         <span class="copy-msg" id="copy-gtow-msg"></span>
       </div>
       <details>
-        <summary class="hint">中身を見る</summary>
+        <summary class="hint fold">中身を見る<svg class="i i-sm chev" data-i="chevron-down" aria-hidden="true"></svg></summary>
         <pre id="gtow"></pre>
       </details>
     </div>
@@ -583,7 +659,7 @@
     <div class="panel">
       <div class="cur-sess">今のセッション：<b id="cur-sess"></b></div>
       <p class="hint">新しいハンドは、今のセッションに保存されます。下の一覧の「このセッションを使う」でも切り替えられます。</p>
-      <button type="button" id="hs-new">＋ 新しいセッションを作る</button>
+      <button type="button" id="hs-new"><svg class="i" data-i="plus" aria-hidden="true"></svg>新しいセッションを作る</button>
       <div class="save-new" id="hs-form" hidden>
         <div class="row">
           <span class="label">日付</span>
@@ -596,7 +672,7 @@
         <div class="same-list" id="hs-same"></div>
         <div class="row">
           <button type="button" id="hs-ok" class="primary">作って、今のセッションにする</button>
-          <button type="button" id="hs-cancel">やめる</button>
+          <button type="button" id="hs-cancel" class="text-btn">やめる</button>
         </div>
       </div>
     </div>
@@ -606,23 +682,23 @@
     <div class="panel">
       <p class="hint warn" id="home-hint" hidden>iPhoneでは、しばらく開かないと保存した履歴が消えることがあります。Safariでこのページを開き、共有ボタン（□に↑）→「ホーム画面に追加」して、ホーム画面のアイコンから使うのがおすすめです。ホーム画面のアプリとブラウザでは保存場所が別なので、履歴を移すときは下の「バックアップ・復元」を使ってください。</p>
       <p class="hint" id="hist-note"></p>
-      <div class="row" id="sel-row"><button type="button" id="sel-start">選ぶ（共有・移す）</button><span class="hint">好きなハンドをまとめて共有したり、別のセッションへ移したりできます</span></div>
+      <div class="row" id="sel-row"><button type="button" id="sel-start"><svg class="i" data-i="list-checks" aria-hidden="true"></svg>選ぶ（共有・移す）</button><span class="hint">好きなハンドをまとめて共有したり、別のセッションへ移したりできます</span></div>
       <pre id="sel-pre" hidden></pre>
       <div class="hist" id="history"></div>
       <!-- バックアップ・復元 -->
       <details class="backup">
-        <summary class="hint">バックアップ・復元 ▼</summary>
+        <summary class="hint fold">バックアップ・復元<svg class="i i-sm chev" data-i="chevron-down" aria-hidden="true"></svg></summary>
         <div class="backup-in">
           <p class="hint">履歴を丸ごと残したり、別の場所（ブラウザ⇔ホーム画面のアプリ、別のスマホ）に移したりするためのものです。コピーされるのは<b>アプリに戻すためのデータ</b>で、人が読む形ではありません（読む・共有するときは、各セッションの「まとめてコピー」を使ってください）。</p>
           <p class="hint">LINEの自分用トークなどに貼って残しておき、戻すときはそのデータを下の欄に貼り付けて「復元する」を押してください（同じハンドは二重に入りません）。</p>
           <div class="row">
-            <button type="button" id="backup-copy" class="primary">バックアップ用データをコピー</button>
+            <button type="button" id="backup-copy" class="primary"><svg class="i" data-i="copy" aria-hidden="true"></svg>バックアップ用データをコピー</button>
             <span class="copy-msg" id="backup-msg"></span>
           </div>
           <pre id="backup-pre" hidden></pre>
           <textarea id="restore-text" rows="4" placeholder="バックアップしたテキストをここに貼り付け"></textarea>
           <div class="row">
-            <button type="button" id="restore-btn">復元する</button>
+            <button type="button" id="restore-btn"><svg class="i" data-i="rotate-ccw" aria-hidden="true"></svg>復元する</button>
             <span class="copy-msg" id="restore-msg"></span>
           </div>
         </div>
@@ -630,7 +706,7 @@
     </div>
   </section>
   <!-- 版の名前（スマホが古い版を表示していないか確かめる用） -->
-  <p class="hint ver">版：step6_6（2026-09-26）</p>
+  <p class="hint ver">版：v1_1（2026-10-04）</p>
 </main>
 
 <!-- 「選ぶ（共有・移す）」の間だけ、画面の下に出る帯 -->
@@ -638,12 +714,12 @@
   <div class="sel-top">
     <span class="sel-count" id="sel-count"></span>
     <span class="copy-msg" id="sel-msg"></span>
-    <button type="button" id="sel-cancel">やめる</button>
+    <button type="button" id="sel-cancel" class="text-btn">やめる</button>
   </div>
   <div class="sel-acts">
-    <button type="button" id="sel-share" class="primary">まとめて共有</button>
-    <button type="button" id="sel-copy">コピー</button>
-    <button type="button" id="sel-move">移す</button>
+    <button type="button" id="sel-share" class="primary"><svg class="i" data-i="share-2" aria-hidden="true"></svg>まとめて共有</button>
+    <button type="button" id="sel-copy"><svg class="i" data-i="copy" aria-hidden="true"></svg>コピー</button>
+    <button type="button" id="sel-move"><svg class="i" data-i="folder-input" aria-hidden="true"></svg>移す</button>
   </div>
 </div>
 
@@ -652,8 +728,8 @@
   <div class="modal-back" data-close="log"></div>
   <div class="modal-box" role="dialog" aria-modal="true" aria-label="アクション履歴">
     <div class="modal-top">
-      <div class="turn"><b>アクション履歴</b></div>
-      <button type="button" data-close="log">閉じる</button>
+      <h3 class="modal-title">アクション履歴</h3>
+      <button type="button" class="icon-btn" data-close="log" aria-label="閉じる"><svg class="i" data-i="x" aria-hidden="true"></svg></button>
     </div>
     <p class="hint" id="log-hint"></p>
     <!-- 額を入れ直す欄（ベット・レイズの「額を入れる」「直す」を押したときだけ出る） -->
@@ -677,7 +753,7 @@
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <div class="modal-top">
       <div class="turn" id="sheet-title"></div>
-      <button type="button" id="sheet-close" data-close="sheet">閉じる</button>
+      <button type="button" id="sheet-close" class="icon-btn" data-close="sheet" aria-label="閉じる"><svg class="i" data-i="x" aria-hidden="true"></svg></button>
     </div>
     <!-- HEROの手札を選ぶときだけ、ポジションも選べるようにする -->
     <div class="sheet-pos-wrap" id="sheet-pos-wrap" hidden>
@@ -706,7 +782,7 @@
 <div class="modal resume-pop" id="resume-pop" hidden>
   <div class="modal-back"></div>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="resume-msg">
-    <div class="turn"><b id="resume-msg">作成中のハンドがあります。続きから入力しますか？</b></div>
+    <h3 class="modal-title" id="resume-msg">作成中のハンドがあります。続きから入力しますか？</h3>
     <p class="hint" id="resume-detail"></p>
     <div class="resume-btns">
       <button type="button" id="resume-yes" class="primary">はい（続きから）</button>
@@ -721,8 +797,8 @@
   <div class="modal-back" data-close="save"></div>
   <div class="modal-box" role="dialog" aria-modal="true" aria-label="保存先を選んで保存">
     <div class="modal-top">
-      <div class="turn"><b id="save-title">保存先のセッション</b></div>
-      <button type="button" data-close="save">閉じる</button>
+      <h3 class="modal-title" id="save-title">保存先のセッション</h3>
+      <button type="button" class="icon-btn" data-close="save" aria-label="閉じる"><svg class="i" data-i="x" aria-hidden="true"></svg></button>
     </div>
     <div class="save-list" id="save-list"></div>
     <!-- 「新しいセッション」を選んだときだけ出る -->
@@ -748,8 +824,8 @@
   <div class="modal-back" data-close="settings"></div>
   <div class="modal-box" role="dialog" aria-modal="true" aria-label="シチュエーション">
     <div class="modal-top">
-      <div class="turn"><b>シチュエーション</b></div>
-      <button type="button" data-close="settings">閉じる</button>
+      <h3 class="modal-title">シチュエーション</h3>
+      <button type="button" class="icon-btn" data-close="settings" aria-label="閉じる"><svg class="i" data-i="x" aria-hidden="true"></svg></button>
     </div>
     <!-- セッション（日付ごとのまとまり。日付が変わると自動で新しくなる） -->
     <div class="row">
@@ -775,7 +851,7 @@
       <div class="same-list" id="sf-same"></div>
       <div class="row">
         <button type="button" id="sf-ok" class="primary">この日付・名前で始める</button>
-        <button type="button" id="sf-cancel">やめる</button>
+        <button type="button" id="sf-cancel" class="text-btn">やめる</button>
       </div>
     </div>
     <p class="hint" id="sess-note"></p>
@@ -822,6 +898,37 @@
 </div>
 
 <script>
+// ============================================
+// 0. アイコン（Lucide https://lucide.dev ・ISCライセンス）
+//    電波がなくても表示できるよう、使う分だけ形をここに書いておく
+// ============================================
+const ICON_PATHS = {
+  'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'check': '<path d="M20 6 9 17l-5-5"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+  'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  'copy': '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  'share-2': '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+  'trash-2': '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  'eraser': '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+  'sliders-horizontal': '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+  'list-checks': '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+  'folder-input': '<path d="M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-1.73"/><path d="M2 13h10"/><path d="m9 16 3-3-3-3"/>',
+};
+// アイコンのHTML（例：icon('copy')）
+const icon = (name, cls = 'i') =>
+  `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+// HTMLに書いた <svg data-i="名前"> に、形を入れる
+document.querySelectorAll('svg[data-i]').forEach(el => {
+  el.setAttribute('viewBox', '0 0 24 24');
+  el.innerHTML = ICON_PATHS[el.dataset.i] || '';
+});
+
 // ============================================
 // 1. 決まりごと（ポジション・カードの種類）
 // ============================================
@@ -1735,14 +1842,14 @@ function renderHistory() {
     const has = list.length > 0;
     // 選んでいる間は、全部のセッションを開いて、ボタンは「全部選ぶ」だけにする
     const buttons = state.selecting
-      ? `<button type="button" data-sselall="${id}"${has ? '' : ' disabled'}>このセッションを全部選ぶ</button>`
-      : `${id === cur ? '' : `<button type="button" class="primary" data-suse="${id}">このセッションを使う</button>`}
-          <button type="button"${id === cur ? ' class="primary"' : ''} data-sshare="${id}"${has ? '' : ' disabled'}>まとめて共有</button>
-          <button type="button" data-scopy="${id}"${has ? '' : ' disabled'}>まとめてコピー</button>
-          ${id === NONE ? '' : `<button type="button" data-sname="${id}">名前を変える</button>`}
-          <button type="button" class="danger" data-sdel="${id}">${id === NONE ? '中身を全部削除' : 'このセッションを削除'}</button>`;
+      ? `<button type="button" data-sselall="${id}"${has ? '' : ' disabled'}>${icon('list-checks')}このセッションを全部選ぶ</button>`
+      : `${id === cur ? '' : `<button type="button" class="primary" data-suse="${id}">${icon('check')}このセッションを使う</button>`}
+          <button type="button"${id === cur ? ' class="primary"' : ''} data-sshare="${id}"${has ? '' : ' disabled'}>${icon('share-2')}まとめて共有</button>
+          <button type="button" data-scopy="${id}"${has ? '' : ' disabled'}>${icon('copy')}まとめてコピー</button>
+          ${id === NONE ? '' : `<button type="button" data-sname="${id}">${icon('pencil')}名前を変える</button>`}
+          <button type="button" class="danger" data-sdel="${id}">${icon('trash-2')}${id === NONE ? '中身を全部削除' : 'このセッションを削除'}</button>`;
     return `<details class="sess"${gi === 0 || id === cur || state.selecting ? ' open' : ''}>
-      <summary><span class="sess-date">${dateLabel(s.date)}</span><span class="sess-name">${escapeHTML(s.name)}</span>${id === cur ? '<span class="sess-cur">今</span>' : ''}<span class="sess-count">${list.length}ハンド</span></summary>
+      <summary><span class="sess-date">${dateLabel(s.date)}</span><span class="sess-name">${escapeHTML(s.name)}</span>${id === cur ? '<span class="sess-cur">今</span>' : ''}<span class="sess-count">${list.length}ハンド</span>${icon('chevron-down', 'i chev')}</summary>
       <div class="sess-in">
         <div class="row">
           ${buttons}
@@ -1772,14 +1879,14 @@ function histItem(h, no) {
     return `<label class="hist-item hist-sel"><input type="checkbox" data-hsel="${h.id}"${selected.has(String(h.id)) ? ' checked' : ''}>${line}</label>`;
   }
   return `<details class="hist-item">
-    <summary>${line}</summary>
+    <summary>${line}${icon('chevron-down', 'i i-sm chev')}</summary>
     <pre id="hist-text-${h.id}">${escapeHTML(h.text)}</pre>
     <div class="row">
-      <button type="button" class="primary" data-hedit="${h.id}">開いて直す</button>
-      <button type="button" data-hshare="${h.id}">共有</button>
-      <button type="button" data-hcopy="text" data-id="${h.id}">記録テキストをコピー</button>
-      <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>GTO Wizard用をコピー</button>
-      <button type="button" class="danger" data-hdel="${h.id}">削除</button>
+      <button type="button" class="primary" data-hedit="${h.id}">${icon('pencil')}開いて直す</button>
+      <button type="button" data-hshare="${h.id}">${icon('share-2')}共有</button>
+      <button type="button" data-hcopy="text" data-id="${h.id}">${icon('copy')}記録テキストをコピー</button>
+      <button type="button" data-hcopy="gtow" data-id="${h.id}"${h.gtow ? '' : ' disabled'}>${icon('copy')}GTO Wizard用をコピー</button>
+      <button type="button" class="danger" data-hdel="${h.id}">${icon('trash-2')}削除</button>
       <span class="copy-msg" id="hist-msg-${h.id}"></span>
     </div>
   </details>`;
@@ -1963,7 +2070,7 @@ function renderLogMini(sim) {
   const el = $('log-mini');
   if (!sim.log.length) {
     el.innerHTML = '<p class="empty-log">まだありません。下の「誰が」→「何を」の順に押してください。</p>';
-    $('log-mini-link').textContent = '詳しく ▸';
+    $('log-mini-link').innerHTML = '詳しく' + icon('chevron-right', 'i i-sm');
     $('log-mini-link').classList.remove('need-amt');
     return;
   }
@@ -1979,7 +2086,7 @@ function renderLogMini(sim) {
   }
   el.innerHTML = html;
   // 額が未入力のベット・レイズがあれば、赤く知らせる
-  $('log-mini-link').textContent = sim.unknown ? '額が未入力：押して入れる ▸' : '詳しく ▸';
+  $('log-mini-link').innerHTML = (sim.unknown ? '額が未入力：押して入れる' : '詳しく') + icon('chevron-right', 'i i-sm');
   $('log-mini-link').classList.toggle('need-amt', sim.unknown);
   // 一番新しいアクションが見えるように、下までスクロールする
   const box = $('log-open');
@@ -2192,8 +2299,8 @@ function renderSheet() {
   $('to-board').hidden = !showNext;
   if (showNext) {
     $('to-board').disabled = !state.heroPos;
-    $('to-board').textContent = state.heroPos
-      ? `${boardName(blank)}選択へ ▶`
+    $('to-board').innerHTML = state.heroPos
+      ? `${boardName(blank)}選択へ${icon('arrow-right')}`
       : `ポジションを選ぶと、${boardName(blank)}選択へ進めます`;
   }
 }
@@ -2417,7 +2524,7 @@ function renderSave() {
     <button type="button" data-starget="${s.id}" class="${state.saveTarget === s.id ? 'on' : ''}">
       <b>${s.id === NONE ? '名無し' : dateLabel(s.date)}</b><span>${s.id === NONE ? '（日付・名前なし）' : escapeHTML(s.name)}</span><small>${s.id === cur ? '今のセッション・' : ''}${handsOf(s.id).length}ハンド</small>
     </button>`).join('') +
-    `<button type="button" data-starget="new" class="${state.saveTarget === 'new' ? 'on' : ''}"><b>＋ 新しいセッション</b></button>`;
+    `<button type="button" data-starget="new" class="${state.saveTarget === 'new' ? 'on' : ''}">${icon('plus')}<b>新しいセッション</b></button>`;
   $('save-new').hidden = state.saveTarget !== 'new';
   // 移すときは「このあとも」は使わない
   $('save-keep').parentElement.hidden = move;
